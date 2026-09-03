@@ -23,6 +23,7 @@ import {
   UserCog,
   History,
   Settings,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { NAV_GROUPS, type NavItem } from "@/lib/nav";
@@ -54,22 +55,42 @@ const ICON_MAP: Record<NavItem["icon"], LucideIcon> = {
 export function Sidebar({
   userName,
   userRole,
+  open,
+  onClose,
 }: {
   userName: string;
   userRole: UserRole;
+  open: boolean;
+  onClose: () => void;
 }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-navy-950 text-slate-300">
+    <aside
+      className={clsx(
+        "flex h-[100dvh] w-[min(16.5rem,85vw)] shrink-0 flex-col bg-navy-950 text-slate-300",
+        "fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
+        "transition-transform duration-200 ease-out",
+        "shadow-xl md:static md:h-full md:w-60 md:translate-x-0 md:pt-0 md:pb-0 md:shadow-none",
+        open ? "translate-x-0" : "-translate-x-full pointer-events-none md:pointer-events-auto"
+      )}
+    >
       <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
           LP
         </div>
-        <div>
-          <p className="text-sm font-semibold leading-tight text-white">LIN PACKAGING</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight text-white">LIN PACKAGING</p>
           <p className="text-[10px] uppercase tracking-widest text-slate-500">Service</p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white md:hidden"
+          aria-label="Tutup menu"
+        >
+          <X size={16} />
+        </button>
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 pb-4">
@@ -89,8 +110,9 @@ export function Sidebar({
                     <li key={item.key}>
                       <Link
                         href={item.href}
+                        onClick={onClose}
                         className={clsx(
-                          "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+                          "flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors md:min-h-0",
                           active
                             ? "bg-blue-600 text-white"
                             : "text-slate-300 hover:bg-white/5 hover:text-white"

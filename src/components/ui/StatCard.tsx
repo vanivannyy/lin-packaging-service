@@ -25,10 +25,10 @@ export function StatCard({
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
+        <p className="pr-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
         {Icon ? <Icon size={15} className="text-gray-400" /> : null}
       </div>
-      <p className={clsx("text-2xl font-bold tracking-tight", VALUE_COLOR[valueColor])}>{value}</p>
+      <p className={clsx("break-words text-xl font-bold tracking-tight sm:text-2xl", VALUE_COLOR[valueColor])}>{value}</p>
       {sublabel ? <p className="mt-1 text-xs text-gray-400">{sublabel}</p> : null}
     </div>
   );

@@ -36,8 +36,8 @@ export default async function DashboardPage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
           {settings?.companyName ?? "PT Lin Packaging Jakarta"}
         </p>
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Management Dashboard</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">Management Dashboard</h1>
           {data.prPending > 0 ? (
             <span className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
               <AlertTriangle size={14} />
