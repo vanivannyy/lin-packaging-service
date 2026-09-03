@@ -1,0 +1,715 @@
+// ============================================================
+// LIN PACKAGING - BUSINESS CONTROL
+// Prisma schema - PostgreSQL
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  OWNER
+  SALES_MANAGER
+  SALES
+  FINANCE
+  WAREHOUSE
+  QC
+  PURCHASING
+  PRODUCTION_PLANNER
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  MEETING
+  QUOTATION
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CustomerTerm {
+  CBD
+  NET_15
+  NET_30
+  NET_45
+  NET_60
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SalesOrderStatus {
+  MATERIAL_CHECK
+  PRODUCTION
+  READY_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum WorkOrderStage {
+  WAITING
+  READY
+  IN_PRODUCTION
+  QC
+  PACKING
+  REWORK
+  DONE
+}
+
+enum WorkOrderProcess {
+  PREPRESS
+  MATERIAL
+  PRINTING
+  LAMINATING
+  FINISHING
+  POND
+  PACKING
+  QC
+  REWORK
+  COMPLETED
+}
+
+enum WorkOrderPriority {
+  NORMAL
+  URGENT
+}
+
+enum WorkOrderStepStatus {
+  WAITING
+  IN_PROGRESS
+  DONE
+}
+
+enum PurchaseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RECEIVED
+}
+
+enum MaterialCategory {
+  PAPER
+  FILM
+  FOIL
+  INK
+  OTHER
+}
+
+enum PriceMasterCategory {
+  PAPER
+  FINISHING
+  LABOR
+  OUTSOURCING
+  OVERHEAD
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  QRIS
+  CARD
+}
+
+enum DeliveryStage {
+  READY
+  IN_DELIVERY
+  PENDING
+  DELIVERED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  EXPORT
+  START
+  COMPLETE
+  QC
+  APPROVE
+  REJECT
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id           String    @id @default(cuid())
+  code         String    @unique // USR-2026-00001
+  name         String
+  email        String    @unique
+  passwordHash String
+  department   String?
+  position     String?
+  role         UserRole  @default(SALES)
+  isActive     Boolean   @default(true)
+  isDeleted    Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  leads            Lead[]
+  customers        Customer[]
+  quotations       Quotation[]
+  purchaseRequests PurchaseRequest[]        @relation("RequestedBy")
+  approvedRequests PurchaseRequest[]        @relation("ApprovedBy")
+  auditLogs        AuditTrail[]
+  notifications    Notification[]
+  productionLogs   WorkOrderProductionLog[]
+  qcChecks         WorkOrderQcCheck[]
+
+  @@index([email])
+  @@index([role, isActive])
+}
+
+// ============================================================
+// CRM - LEAD PIPELINE
+// ============================================================
+
+model Lead {
+  id             String    @id @default(cuid())
+  code           String    @unique // LEAD-2026-00001
+  companyName    String
+  productNote    String? // e.g. "Paper Bag Kraft"
+  contactName    String?
+  contactPhone   String?
+  estimatedValue Decimal   @default(0) @db.Decimal(15, 2)
+  stage          LeadStage @default(NEW)
+  salesId        String?
+  sales          User?     @relation(fields: [salesId], references: [id])
+  isDeleted      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  customer Customer?
+
+  @@index([stage, isDeleted])
+  @@index([salesId])
+}
+
+// ============================================================
+// CUSTOMER
+// ============================================================
+
+model Customer {
+  id           String       @id @default(cuid())
+  code         String       @unique // CUS-2026-00001
+  name         String
+  industry     String?
+  contactName  String?
+  contactPhone String?
+  email        String?
+  npwp         String?
+  address      String?
+  term         CustomerTerm @default(NET_30)
+  creditLimit  Decimal      @default(0) @db.Decimal(15, 2)
+  salesId      String?
+  sales        User?        @relation(fields: [salesId], references: [id])
+  leadId       String?      @unique
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  isActive     Boolean      @default(true)
+  isDeleted    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  quotations  Quotation[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+
+  @@index([name])
+  @@index([code])
+  @@index([isActive, isDeleted])
+}
+
+// ============================================================
+// PRODUCT MASTER
+// ============================================================
+
+model Product {
+  id                String           @id @default(cuid())
+  code              String           @unique // PRD-2026-00001
+  name              String
+  category          String // BOX, FOLDING_CARTON, BROCHURE, PAPER_BAG, STICKER, WOBBLER, CUSTOM (legacy, sinkron dgn productCategory.name)
+  categoryId        String?
+  productCategory   ProductCategory? @relation(fields: [categoryId], references: [id])
+  unit              String           @default("PCS")
+  defaultMaterialId String?
+  defaultMaterial   Material?        @relation(fields: [defaultMaterialId], references: [id])
+  specification     String?
+  isActive          Boolean          @default(true)
+  isDeleted         Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  quotations  Quotation[]
+  salesOrders SalesOrder[]
+  designs     DesignMaster[]
+
+  @@index([name])
+  @@index([category, isDeleted])
+}
+
+// ============================================================
+// MASTER KATEGORI PRODUK
+// ============================================================
+
+model ProductCategory {
+  id        String   @id @default(cuid())
+  code      String   @unique // CAT-2026-00001
+  name      String
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@index([name])
+}
+
+// ============================================================
+// SUPPLIER & MATERIAL / STOCK
+// ============================================================
+
+model Supplier {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  contact   String?
+  phone     String?
+  address   String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  materials        Material[]
+  purchaseRequests PurchaseRequest[]
+
+  @@index([name])
+}
+
+model Material {
+  id           String           @id @default(cuid())
+  sku          String           @unique // MTR-2026-00001
+  name         String
+  category     MaterialCategory @default(PAPER)
+  gsm          Int?
+  size         String? // "65x100 cm"
+  supplierId   String?
+  supplier     Supplier?        @relation(fields: [supplierId], references: [id])
+  pricePerUnit Decimal          @default(0) @db.Decimal(15, 2)
+  unit         String           @default("LEMBAR")
+  stockQty     Decimal          @default(0) @db.Decimal(15, 3)
+  reservedQty  Decimal          @default(0) @db.Decimal(15, 3)
+  minStockQty  Decimal          @default(0) @db.Decimal(15, 3)
+  isDeleted    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  products         Product[]
+  stockMovements   StockMovement[]
+  purchaseRequests PurchaseRequest[]
+
+  @@index([category, isDeleted])
+  @@index([name])
+}
+
+model StockMovement {
+  id            String   @id @default(cuid())
+  materialId    String
+  material      Material @relation(fields: [materialId], references: [id])
+  quantity      Decimal  @db.Decimal(15, 3) // signed +/-
+  type          String // PURCHASE_IN | PRODUCTION_OUT | ADJUSTMENT | RETURN_IN
+  referenceCode String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([materialId, createdAt])
+}
+
+// ============================================================
+// PRICE MASTER (komponen biaya HPP)
+// ============================================================
+
+model PriceMasterItem {
+  id            String              @id @default(cuid())
+  category      PriceMasterCategory
+  name          String
+  vendor        String?             @default("Internal")
+  unit          String // LEMBAR, PCS, PERSEN
+  minQty        Int                 @default(0)
+  price         Decimal             @db.Decimal(15, 2)
+  effectiveDate DateTime            @default(now())
+  isActive      Boolean             @default(true)
+  isDeleted     Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([category, isActive])
+}
+
+// ============================================================
+// QUOTATION
+// ============================================================
+
+model Quotation {
+  id                    String          @id @default(cuid())
+  code                  String          @unique // QT-2026-00001
+  date                  DateTime        @default(now())
+  customerId            String?
+  customer              Customer?       @relation(fields: [customerId], references: [id])
+  productId             String?
+  product               Product?        @relation(fields: [productId], references: [id])
+  productNote           String? // free-text product name shown in table
+  qty                   Int
+  hppAmount             Decimal         @default(0) @db.Decimal(15, 2)
+  marginPercent         Decimal         @default(0) @db.Decimal(5, 2)
+  totalAmount           Decimal         @default(0) @db.Decimal(15, 2)
+  materialSpec          Json? // snapshot detail bahan & finishing dari Kalkulator HPP (gsm, ukuran plano/potong, laminating, foil, metode cetak, dst.)
+  requestedDeliveryDate DateTime? // tanggal kirim yang diminta, diisi dari Kalkulator HPP
+  salesId               String?
+  sales                 User?           @relation(fields: [salesId], references: [id])
+  status                QuotationStatus @default(DRAFT)
+  isDeleted             Boolean         @default(false)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  salesOrder SalesOrder?
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+}
+
+// ============================================================
+// SALES ORDER
+// ============================================================
+
+model SalesOrder {
+  id                    String           @id @default(cuid())
+  code                  String           @unique // SO-2026-00001
+  quotationId           String?          @unique
+  quotation             Quotation?       @relation(fields: [quotationId], references: [id])
+  date                  DateTime         @default(now())
+  customerId            String
+  customer              Customer         @relation(fields: [customerId], references: [id])
+  productId             String?
+  product               Product?         @relation(fields: [productId], references: [id])
+  productNote           String?
+  qty                   Int
+  totalAmount           Decimal          @default(0) @db.Decimal(15, 2)
+  marginPercent         Decimal          @default(0) @db.Decimal(5, 2)
+  requestedDeliveryDate DateTime?
+  deliveredAt           DateTime?
+  status                SalesOrderStatus @default(MATERIAL_CHECK)
+  isDeleted             Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  workOrder     WorkOrder?
+  invoice       Invoice?
+  deliveryOrder DeliveryOrder?
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+}
+
+// ============================================================
+// PRODUCTION BOARD - WORK ORDER
+// ============================================================
+
+model WorkOrder {
+  id                       String            @id @default(cuid())
+  code                     String            @unique // WO-2026-00001
+  salesOrderId             String            @unique
+  salesOrder               SalesOrder        @relation(fields: [salesOrderId], references: [id])
+  stage                    WorkOrderStage    @default(WAITING)
+  process                  WorkOrderProcess  @default(PREPRESS)
+  progressPercent          Int               @default(0)
+  priority                 WorkOrderPriority @default(NORMAL)
+  deadline                 DateTime?
+  startedAt                DateTime?
+  completedAt              DateTime?
+  qcPassed                 Boolean?
+  rejectRatePercent        Decimal           @default(0) @db.Decimal(5, 2) // % reject terakhir, diisi saat QC reject
+  goodQtyTotal             Int               @default(0) // akumulasi qty good dari log produksi
+  rejectQtyTotal           Int               @default(0) // akumulasi qty reject dari log produksi
+  prepressDesignUrl        String? // path/URL screenshot design yang diupload prepress, wajib sebelum masuk produksi
+  prepressDesignUploadedAt DateTime?
+  isInRevision             Boolean           @default(false) // true saat prepress diminta revisi (board kuning)
+  revisionCount            Int               @default(0)
+  revisionNote             String?
+  isDeleted                Boolean           @default(false)
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  stepProgress   WorkOrderStepProgress[]
+  productionLogs WorkOrderProductionLog[]
+  qcChecks       WorkOrderQcCheck[]
+
+  @@index([stage])
+  @@index([deadline])
+}
+
+// Status per langkah proses produksi (Prepress, Material, Printing, dst.) untuk detail modal papan produksi.
+model WorkOrderStepProgress {
+  id          String              @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder           @relation(fields: [workOrderId], references: [id])
+  process     WorkOrderProcess
+  status      WorkOrderStepStatus @default(WAITING)
+  goodQty     Int                 @default(0)
+  rejectQty   Int                 @default(0)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([workOrderId, process])
+  @@index([workOrderId])
+}
+
+// Log produksi (qty good/reject/downtime/catatan) - audit trail, tidak pernah dihapus.
+model WorkOrderProductionLog {
+  id              String            @id @default(cuid())
+  workOrderId     String
+  workOrder       WorkOrder         @relation(fields: [workOrderId], references: [id])
+  process         WorkOrderProcess?
+  goodQty         Int               @default(0)
+  rejectQty       Int               @default(0)
+  downtimeMinutes Int               @default(0)
+  note            String?
+  userId          String?
+  user            User?             @relation(fields: [userId], references: [id])
+  createdAt       DateTime          @default(now())
+
+  @@index([workOrderId, createdAt])
+}
+
+// Checklist inspeksi QC per tahap (mis. QC Printing, QC Finishing).
+model WorkOrderQcCheck {
+  id          String    @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  checkType   String // PRINTING | FINISHING
+  passed      Boolean?
+  note        String?
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([workOrderId, checkType])
+}
+
+// ============================================================
+// PURCHASE REQUEST
+// ============================================================
+
+model PurchaseRequest {
+  id             String                @id @default(cuid())
+  code           String                @unique // PR-2026-00001
+  date           DateTime              @default(now())
+  materialId     String
+  material       Material              @relation(fields: [materialId], references: [id])
+  qty            Decimal               @db.Decimal(15, 3)
+  supplierId     String?
+  supplier       Supplier?             @relation(fields: [supplierId], references: [id])
+  estimatedCost  Decimal               @default(0) @db.Decimal(15, 2)
+  neededDate     DateTime?
+  salesOrderCode String? // reference SO if triggered by an order
+  requestedById  String
+  requestedBy    User                  @relation("RequestedBy", fields: [requestedById], references: [id])
+  approvedById   String?
+  approvedBy     User?                 @relation("ApprovedBy", fields: [approvedById], references: [id])
+  status         PurchaseRequestStatus @default(PENDING)
+  note           String?
+  autoGenerated  Boolean               @default(false) // dibuat otomatis karena stok di bawah minimum
+  isDeleted      Boolean               @default(false)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([status])
+  @@index([materialId])
+}
+
+// ============================================================
+// INVOICE & PAYMENT
+// ============================================================
+
+model Invoice {
+  id           String        @id @default(cuid())
+  code         String        @unique // INV-2026-00001
+  salesOrderId String        @unique
+  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  issuedAt     DateTime      @default(now())
+  dueDate      DateTime?
+  totalAmount  Decimal       @db.Decimal(15, 2)
+  paidAmount   Decimal       @default(0) @db.Decimal(15, 2)
+  status       InvoiceStatus @default(UNPAID)
+  isDeleted    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  payments Payment[]
+
+  @@index([customerId, issuedAt])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  invoiceId String
+  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(15, 2)
+  method    PaymentMethod @default(TRANSFER)
+  reference String?
+  paidAt    DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  @@index([invoiceId])
+}
+
+// ============================================================
+// DELIVERY BOARD
+// ============================================================
+
+model DeliveryOrder {
+  id           String        @id @default(cuid())
+  code         String        @unique // DO-2026-00001
+  salesOrderId String        @unique
+  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  stage        DeliveryStage @default(READY)
+  note         String? // wajib diisi relevan saat stage PENDING (alasan tertunda)
+  deliveredAt  DateTime?
+  isDeleted    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([stage])
+}
+
+// ============================================================
+// MASTER DESIGN (link Google Drive)
+// ============================================================
+
+model DesignMaster {
+  id        String   @id @default(cuid())
+  code      String   @unique // DSG-2026-00001
+  name      String
+  driveUrl  String
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  note      String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// ============================================================
+// AUDIT TRAIL (WAJIB - tidak boleh hard delete apapun)
+// ============================================================
+
+model AuditTrail {
+  id            String      @id @default(cuid())
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id])
+  module        String // production | purchasing | quotations | ...
+  action        AuditAction
+  referenceCode String?
+  oldValue      Json?
+  newValue      Json?
+  createdAt     DateTime    @default(now())
+
+  @@index([module, action])
+  @@index([userId, createdAt])
+}
+
+// ============================================================
+// IN-APP NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  title         String
+  message       String
+  href          String?
+  module        String
+  referenceCode String?
+  type          String   @default("STATUS") // STATUS | APPROVAL | ACTION
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+// ============================================================
+// DAILY RECAP LOG (email owner setiap pagi)
+// ============================================================
+
+model DailyRecapLog {
+  id             String   @id @default(cuid())
+  recapDate      DateTime
+  recipientEmail String
+  status         String   @default("SENT") // SENT | FAILED
+  sentAt         DateTime @default(now())
+
+  @@index([recapDate])
+}
+
+// ============================================================
+// COMPANY SETTINGS (single-row config)
+// ============================================================
+
+model CompanySettings {
+  id                    String   @id @default(cuid())
+  companyName           String
+  address               String?
+  phone                 String?
+  email                 String?
+  website               String?
+  taxId                 String?
+  bankName              String?
+  bankAccountNo         String?
+  bankAccountName       String?
+  logoUrl               String?
+  dailyRecapEmail       String?
+  quotationPrefix       String   @default("QT")
+  salesOrderPrefix      String   @default("SO")
+  workOrderPrefix       String   @default("WO")
+  deliveryOrderPrefix   String   @default("DO")
+  invoicePrefix         String   @default("INV")
+  customerPrefix        String   @default("CUS")
+  leadPrefix            String   @default("LEAD")
+  productCategoryPrefix String   @default("CAT")
+  designPrefix          String   @default("DSG")
+  updatedAt             DateTime @updatedAt
+}

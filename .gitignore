@@ -25,7 +25,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# local env files (jangan pernah commit secret / connection string asli)
+.env
 .env*.local
 
 # vercel
@@ -34,3 +35,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# file upload lokal (screenshot design prepress, dll.)
+/public/uploads/*
+!/public/uploads/.gitkeep
