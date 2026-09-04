@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule } from "@/lib/require-session";
 import { MATERIAL_CATEGORY_LABEL } from "@/lib/labels";
+import { generateBarcodeDataUrl } from "@/lib/barcode";
 import { PrintButton } from "@/app/invoice/[id]/PrintButton";
 
 export default async function MaterialBarcodePage({
@@ -22,6 +23,8 @@ export default async function MaterialBarcodePage({
   ]);
 
   if (!material || material.isDeleted) notFound();
+
+  const barcodeSrc = await generateBarcodeDataUrl(material.sku);
 
   return (
     <div className="mx-auto max-w-3xl bg-white p-8 text-sm text-gray-800">
@@ -65,7 +68,12 @@ export default async function MaterialBarcodePage({
               {material.size ? ` · ${material.size}` : ""}
               {material.gsm ? ` · ${material.gsm}gsm` : ""}
             </p>
-            <img src={`/api/barcode/${material.sku}`} alt={material.sku} className="my-1.5 h-14" />
+            <img
+              src={barcodeSrc}
+              alt={material.sku}
+              className="my-1.5 h-14 w-auto print:block"
+              style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+            />
             <p className="font-mono text-xs text-gray-700">{material.sku}</p>
             {settings?.companyName ? <p className="text-[9px] text-gray-400">{settings.companyName}</p> : null}
           </div>

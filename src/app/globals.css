@@ -12,6 +12,13 @@ body {
   background: var(--background);
 }
 
+@media print {
+  img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

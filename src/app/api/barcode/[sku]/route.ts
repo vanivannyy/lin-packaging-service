@@ -1,5 +1,5 @@
-import bwipjs from "bwip-js/node";
 import { denyIfNoModule } from "@/lib/require-session";
+import { generateBarcodePng } from "@/lib/barcode";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ sku: string }> }) {
   const denied = await denyIfNoModule("material-stok");
@@ -7,15 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sku: st
   const { sku } = await params;
 
   try {
-    const png = await bwipjs.toBuffer({
-      bcid: "code128",
-      text: decodeURIComponent(sku),
-      scale: 3,
-      height: 12,
-      includetext: true,
-      textxalign: "center",
-      textsize: 9,
-    });
+    const png = await generateBarcodePng(decodeURIComponent(sku));
 
     return new Response(new Uint8Array(png), {
       headers: {
