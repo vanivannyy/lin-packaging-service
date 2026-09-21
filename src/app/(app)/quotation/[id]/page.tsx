@@ -11,6 +11,8 @@ import {
   updateQuotationStatusAction,
 } from "../actions";
 import { PrintActions } from "./PrintActions";
+import { CuttingLayoutPreview } from "@/components/CuttingLayoutPreview";
+import { parseCuttingLayoutInput } from "@/lib/draw-cutting-layout";
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -58,6 +60,8 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
     const value = log.newValue as { fromHppCalculator?: boolean } | null;
     return Boolean(value?.fromHppCalculator);
   });
+  const materialSpec = (quotation.materialSpec as Record<string, unknown> | null) ?? null;
+  const hasCuttingLayout = Boolean(parseCuttingLayoutInput(materialSpec));
 
   return (
     <div>
@@ -190,6 +194,13 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           )}
         </Card>
       </div>
+
+      {hasCuttingLayout ? (
+        <Card className="mt-4 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Layout Potong Plano</p>
+          <CuttingLayoutPreview spec={materialSpec} />
+        </Card>
+      ) : null}
     </div>
   );
 }
