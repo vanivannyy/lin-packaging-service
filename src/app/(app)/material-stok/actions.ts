@@ -47,6 +47,7 @@ const adjustSchema = z.object({
   materialId: z.string(),
   quantity: z.coerce.number(),
   note: z.string().optional(),
+  referenceCode: z.string().optional(),
 });
 
 export async function adjustStockAction(formData: FormData) {
@@ -55,12 +56,14 @@ export async function adjustStockAction(formData: FormData) {
     materialId: formData.get("materialId"),
     quantity: formData.get("quantity"),
     note: formData.get("note") || undefined,
+    referenceCode: formData.get("referenceCode") || undefined,
   });
 
   await adjustMaterialStock({
     materialId: parsed.materialId,
     quantity: parsed.quantity,
     note: parsed.note,
+    referenceCode: parsed.referenceCode,
     userId: session.userId,
   });
 

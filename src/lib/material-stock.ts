@@ -7,10 +7,24 @@ interface AdjustStockParams {
   quantity: number;
   note?: string;
   userId: string;
+  /** Nomor SO/WO/DO tujuan pemakaian/pengembalian material — supaya pengurangan
+   *  stok bisa dilacak dipakai untuk order/produksi/pengiriman mana. */
+  referenceCode?: string;
 }
 
-export async function adjustMaterialStock({ materialId, quantity, note, userId }: AdjustStockParams) {
+export async function adjustMaterialStock({
+  materialId,
+  quantity,
+  note,
+  userId,
+  referenceCode,
+}: AdjustStockParams) {
   const material = await prisma.material.findUniqueOrThrow({ where: { id: materialId } });
+  const cleanReference = referenceCode?.trim().toUpperCase() || undefined;
+  // Ada referensi + stok berkurang = dipakai produksi untuk SO/WO tertentu.
+  // Ada referensi + stok bertambah = mis. retur dari SO/WO tertentu.
+  // Tanpa referensi = penyesuaian stok manual biasa.
+  const movementType = cleanReference ? (quantity < 0 ? "PRODUCTION_OUT" : "RETURN_IN") : "ADJUSTMENT";
 
   await prisma.$transaction([
     prisma.material.update({
@@ -21,7 +35,8 @@ export async function adjustMaterialStock({ materialId, quantity, note, userId }
       data: {
         materialId,
         quantity,
-        type: "ADJUSTMENT",
+        type: movementType,
+        referenceCode: cleanReference,
         note: note ?? "Penyesuaian stok manual",
       },
     }),
@@ -31,9 +46,9 @@ export async function adjustMaterialStock({ materialId, quantity, note, userId }
     userId,
     module: "material",
     action: "UPDATE",
-    referenceCode: material.sku,
+    referenceCode: cleanReference ?? material.sku,
     oldValue: { stockQty: material.stockQty.toString() },
-    newValue: { adjustment: quantity },
+    newValue: { adjustment: quantity, referenceCode: cleanReference ?? null },
   });
 
   await autoCreatePurchaseRequestIfNeeded(materialId);

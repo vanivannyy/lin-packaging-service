@@ -1,9 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { requireMobileSession } from "@/lib/mobile-auth";
+import { canAccessModule } from "@/lib/roles";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireMobileSession(req);
   if (authResult instanceof Response) return authResult;
+
+  if (!canAccessModule(authResult.role, "material-stok")) {
+    return Response.json(
+      { error: "Akun ini tidak memiliki akses ke modul Material & Stok" },
+      { status: 403 },
+    );
+  }
 
   const { id } = await params;
   const sku = decodeURIComponent(id);

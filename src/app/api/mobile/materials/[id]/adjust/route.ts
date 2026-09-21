@@ -1,15 +1,24 @@
 import { z } from "zod";
 import { requireMobileSession } from "@/lib/mobile-auth";
 import { adjustMaterialStock } from "@/lib/material-stock";
+import { canAccessModule } from "@/lib/roles";
 
 const adjustSchema = z.object({
   quantity: z.number().refine((n) => n !== 0, "Jumlah tidak boleh 0"),
   note: z.string().optional(),
+  referenceCode: z.string().optional(),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authResult = await requireMobileSession(req);
   if (authResult instanceof Response) return authResult;
+
+  if (!canAccessModule(authResult.role, "material-stok")) {
+    return Response.json(
+      { error: "Akun ini tidak memiliki akses ke modul Material & Stok" },
+      { status: 403 },
+    );
+  }
 
   const { id } = await params;
 
@@ -30,6 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       materialId: id,
       quantity: parsed.data.quantity,
       note: parsed.data.note,
+      referenceCode: parsed.data.referenceCode,
       userId: authResult.userId,
     });
 

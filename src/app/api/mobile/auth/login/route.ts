@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signMobileToken } from "@/lib/mobile-auth";
 import { logAudit } from "@/lib/audit";
-import { canAccessModule } from "@/lib/roles";
+import { ROLE_MODULES } from "@/lib/roles";
 
 const loginSchema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -35,13 +35,6 @@ export async function POST(req: Request) {
     return Response.json({ error: "Email atau password salah" }, { status: 401 });
   }
 
-  if (!canAccessModule(user.role, "material-stok")) {
-    return Response.json(
-      { error: "Akun ini tidak memiliki akses ke modul Material & Stok" },
-      { status: 403 },
-    );
-  }
-
   const token = await signMobileToken({
     userId: user.id,
     code: user.code,
@@ -61,6 +54,12 @@ export async function POST(req: Request) {
 
   return Response.json({
     token,
-    user: { id: user.id, code: user.code, name: user.name, role: user.role },
+    user: {
+      id: user.id,
+      code: user.code,
+      name: user.name,
+      role: user.role,
+      modules: ROLE_MODULES[user.role],
+    },
   });
 }

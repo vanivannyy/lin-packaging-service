@@ -150,6 +150,12 @@ export default async function MaterialStokPage() {
                             <Field label="Jumlah (+/-)">
                               <Input name="quantity" type="number" required placeholder="mis. -50 atau 100" />
                             </Field>
+                            <Field label="Referensi SO/WO/DO (opsional)">
+                              <Input
+                                name="referenceCode"
+                                placeholder="mis. SO-2026-00001 / WO-2026-00001"
+                              />
+                            </Field>
                             <Field label="Catatan">
                               <TextArea name="note" rows={2} placeholder="Alasan penyesuaian" />
                             </Field>
