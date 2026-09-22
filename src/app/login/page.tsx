@@ -1,4 +1,5 @@
 import { loginAction } from "./actions";
+import { PasswordField } from "./PasswordField";
 
 export default async function LoginPage({
   searchParams,
@@ -49,14 +50,7 @@ export default async function LoginPage({
             <label htmlFor="password" className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              defaultValue="password123"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
+            <PasswordField defaultValue="password123" />
           </div>
 
           <button

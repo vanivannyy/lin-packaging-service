@@ -33,7 +33,7 @@ export async function Topbar() {
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
         <NotificationBell
           unreadCount={unreadCount}
           notifications={notifications.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() }))}
