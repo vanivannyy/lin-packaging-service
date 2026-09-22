@@ -39,7 +39,7 @@ export async function createMaterialAction(formData: FormData) {
 
   await logAudit({ userId: session.userId, module: "material", action: "CREATE", referenceCode: material.sku, newValue: parsed });
   await autoCreatePurchaseRequestIfNeeded(material.id);
-  revalidatePath("/material-stok");
+  revalidatePath("/material-stok", "layout");
   revalidatePath("/purchase-request");
 }
 
@@ -65,8 +65,6 @@ export async function adjustStockAction(formData: FormData) {
     note: parsed.note,
     referenceCode: parsed.referenceCode,
     userId: session.userId,
+    source: "WEB",
   });
-
-  revalidatePath("/material-stok");
-  revalidatePath("/purchase-request");
 }

@@ -61,6 +61,24 @@ export const MATERIAL_CATEGORY_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
+export const STOCK_MOVEMENT_TYPE_LABEL: Record<string, string> = {
+  PURCHASE_IN: "Penerimaan",
+  PRODUCTION_OUT: "Pemakaian",
+  ADJUSTMENT: "Penyesuaian",
+  RETURN_IN: "Retur",
+};
+
+export const STOCK_MOVEMENT_SOURCE_LABEL: Record<string, string> = {
+  WEB: "Web",
+  MOBILE: "Aplikasi",
+};
+
+/** Data lama belum mencatat sumber; default DB "WEB" jangan ditampilkan sebagai Web. */
+export function stockMovementSourceLabel(source?: string | null, userId?: string | null) {
+  if (!userId || !source) return "-";
+  return STOCK_MOVEMENT_SOURCE_LABEL[source] ?? source;
+}
+
 export const PRICE_CATEGORY_LABEL: Record<string, string> = {
   PAPER: "Paper",
   FINISHING: "Finishing",

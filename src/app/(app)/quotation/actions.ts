@@ -154,20 +154,34 @@ export async function convertQuotationToSalesOrderAction(formData: FormData) {
     },
   });
 
-  await logAudit({ userId: session.userId, module: "quotations", action: "CREATE", referenceCode: salesOrder.code, newValue: { fromQuotation: quotation.code } });
+  await logAudit({
+    userId: session.userId,
+    module: "quotations",
+    action: "CREATE",
+    referenceCode: salesOrder.code,
+    newValue: { fromQuotation: quotation.code },
+  });
+  await logAudit({
+    userId: session.userId,
+    module: "sales-order",
+    action: "CREATE",
+    referenceCode: salesOrder.code,
+    newValue: { fromQuotation: quotation.code, customerId },
+  });
   await notifyStatusChange({
     excludeUserId: session.userId,
     moduleKeys: ["sales-order", "produksi", "material-stok"],
     extraUserIds: [quotation.salesId],
     module: "sales-order",
     type: "ACTION",
-    href: "/sales-order",
+    href: `/sales-order/${salesOrder.id}`,
     referenceCode: salesOrder.code,
     title: "Sales Order baru — cek material",
     message: `${session.name} membuat ${salesOrder.code} dari ${quotation.code}. Silakan cek material lalu mulai produksi.`,
   });
   revalidatePath("/quotation");
   revalidatePath(`/quotation/${quotation.id}`);
-  revalidatePath("/sales-order");
+  revalidatePath("/sales-order", "layout");
+  revalidatePath(`/sales-order/${salesOrder.id}`);
   revalidatePath("/produksi");
 }

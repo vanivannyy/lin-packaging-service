@@ -115,11 +115,17 @@ export default async function MaterialStokPage() {
                 const isLow = available <= Number(m.minStockQty);
                 return (
                   <Tr key={m.id}>
-                    <Td className="font-medium text-blue-600">{m.sku}</Td>
+                    <Td className="font-medium text-blue-600">
+                      <Link href={`/material-stok/${m.id}`} className="hover:underline">
+                        {m.sku}
+                      </Link>
+                    </Td>
                     <Td className="font-medium text-gray-900">
                       <div className="flex items-center gap-1.5">
                         {isLow ? <AlertTriangle size={13} className="text-red-500" /> : null}
-                        {m.name}
+                        <Link href={`/material-stok/${m.id}`} className="hover:underline">
+                          {m.name}
+                        </Link>
                       </div>
                     </Td>
                     <Td>

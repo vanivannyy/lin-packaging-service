@@ -41,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       note: parsed.data.note,
       referenceCode: parsed.data.referenceCode,
       userId: authResult.userId,
+      source: "MOBILE",
     });
 
     const available = Number(material.stockQty) - Number(material.reservedQty);

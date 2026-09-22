@@ -137,6 +137,8 @@ export async function receivePurchaseRequestAction(formData: FormData) {
         type: "PURCHASE_IN",
         referenceCode: pr.code,
         note: `Penerimaan barang dari PO ${pr.code}`,
+        source: "WEB",
+        userId: session.userId,
       },
     }),
   ]);
@@ -161,5 +163,5 @@ export async function receivePurchaseRequestAction(formData: FormData) {
     message: `${session.name} menerima barang ${pr.code}. Stok material sudah diupdate.`,
   });
   revalidatePath("/purchase-request");
-  revalidatePath("/material-stok");
+  revalidatePath("/material-stok", "layout");
 }

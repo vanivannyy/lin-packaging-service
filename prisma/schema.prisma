@@ -182,6 +182,7 @@ model User {
   notifications    Notification[]
   productionLogs   WorkOrderProductionLog[]
   qcChecks         WorkOrderQcCheck[]
+  stockMovements   StockMovement[]
 
   @@index([email])
   @@index([role, isActive])
@@ -346,9 +347,13 @@ model StockMovement {
   type          String // PURCHASE_IN | PRODUCTION_OUT | ADJUSTMENT | RETURN_IN
   referenceCode String?
   note          String?
+  source        String   @default("WEB") // WEB | MOBILE
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
   createdAt     DateTime @default(now())
 
   @@index([materialId, createdAt])
+  @@index([referenceCode])
 }
 
 // ============================================================

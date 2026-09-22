@@ -96,6 +96,7 @@ export async function updateSalesOrderStatusAction(formData: FormData) {
     });
   }
 
-  revalidatePath("/sales-order");
+  revalidatePath("/sales-order", "layout");
+  revalidatePath(`/sales-order/${salesOrderId}`);
   revalidatePath("/produksi");
 }

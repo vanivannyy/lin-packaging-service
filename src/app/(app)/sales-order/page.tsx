@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, Table, Thead, Th, Tbody, Tr, Td, EmptyRow } from "@/components/ui/Table";
@@ -81,7 +82,11 @@ export default async function SalesOrderPage({
                 const action = NEXT_STATUS[so.status];
                 return (
                   <Tr key={so.id}>
-                    <Td className="font-medium text-blue-600">{so.code}</Td>
+                    <Td className="font-medium text-blue-600">
+                      <Link href={`/sales-order/${so.id}`} className="hover:underline">
+                        {so.code}
+                      </Link>
+                    </Td>
                     <Td className="text-gray-500">{so.quotation?.code ?? "-"}</Td>
                     <Td>{formatDate(so.date)}</Td>
                     <Td className="font-medium text-gray-900">{so.customer.name}</Td>
