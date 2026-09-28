@@ -50,7 +50,7 @@ async function main() {
   const passwordHash = await bcrypt.hash("password123", 10);
   const userSeed: Array<{ code: string; name: string; email: string; department: string; position: string; role: UserRole }> = [
     { code: code("USR", 1), name: "Budi Santoso", email: "owner@lin-packaging.com", department: "Direksi", position: "Owner", role: "OWNER" },
-    { code: code("USR", 3), name: "Andi Wijaya", email: "salesmanager@lin-packaging.com", department: "Sales", position: "Sales Manager", role: "SALES_MANAGER" },
+    { code: code("USR", 3), name: "Andi Wijaya", email: "gm@lin-packaging.com", department: "Sales", position: "General Manager", role: "GENERAL_MANAGER" },
     { code: code("USR", 4), name: "Dewi Lestari", email: "sales@lin-packaging.com", department: "Sales", position: "Sales Executive", role: "SALES" },
     { code: code("USR", 6), name: "Joko Prasetyo", email: "gudang@lin-packaging.com", department: "Gudang", position: "Warehouse Staff", role: "WAREHOUSE" },
     { code: code("USR", 7), name: "Rina Marlina", email: "purchasing@lin-packaging.com", department: "Purchasing", position: "Purchasing Officer", role: "PURCHASING" },
@@ -62,7 +62,7 @@ async function main() {
     userSeed.map((u) => prisma.user.create({ data: { ...u, passwordHash, lastLoginAt: new Date() } }))
   );
   const owner = users.find((u) => u.role === "OWNER")!;
-  const salesManager = users.find((u) => u.role === "SALES_MANAGER")!;
+  const generalManager = users.find((u) => u.role === "GENERAL_MANAGER")!;
   const sales = users.find((u) => u.role === "SALES")!;
   const purchasing = users.find((u) => u.role === "PURCHASING")!;
 
@@ -245,7 +245,7 @@ async function main() {
           address: c.address,
           term: c.term,
           creditLimit: c.limit,
-          salesId: (c.sales === "Dewi Lestari" ? sales : salesManager).id,
+          salesId: (c.sales === "Dewi Lestari" ? sales : generalManager).id,
         },
       })
     )
@@ -273,7 +273,7 @@ async function main() {
           productNote: l.product,
           estimatedValue: l.value,
           stage: l.stage,
-          salesId: (l.sales === "Dewi Lestari" ? sales : salesManager).id,
+          salesId: (l.sales === "Dewi Lestari" ? sales : generalManager).id,
         },
       })
     )

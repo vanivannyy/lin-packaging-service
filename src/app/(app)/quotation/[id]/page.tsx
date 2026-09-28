@@ -24,7 +24,8 @@ function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModule("quotation");
+  const session = await requireModule("quotation");
+  const canApprove = session.role === "OWNER" || session.role === "GENERAL_MANAGER";
   const { id } = await params;
 
   const quotation = await prisma.quotation.findFirst({
@@ -85,7 +86,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </button>
             </form>
           ) : null}
-          {quotation.status === "SENT" ? (
+          {quotation.status === "SENT" && canApprove ? (
             <>
               <form action={updateQuotationStatusAction}>
                 <input type="hidden" name="quotationId" value={quotation.id} />
@@ -102,6 +103,8 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                 </button>
               </form>
             </>
+          ) : quotation.status === "SENT" ? (
+            <span className="text-sm text-gray-400">Menunggu approval Owner/GM</span>
           ) : null}
           {quotation.status === "ACCEPTED" && !quotation.salesOrder ? (
             <form action={convertQuotationToSalesOrderAction} className="flex items-center gap-2">
@@ -143,7 +146,10 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                 label="Customer"
                 value={quotation.customer ? `${quotation.customer.name} (${quotation.customer.code})` : "-"}
               />
-              <InfoItem label="Berlaku Sampai" value="-" />
+              <InfoItem
+                label="Tanggal Pengiriman"
+                value={quotation.requestedDeliveryDate ? formatDate(quotation.requestedDeliveryDate) : "-"}
+              />
               <InfoItem label="Produk" value={productName} />
               <InfoItem label="Material" value={quotation.product?.defaultMaterial?.name ?? "-"} />
               <InfoItem label="Spesifikasi" value={quotation.product?.specification ?? quotation.product?.category ?? "-"} />

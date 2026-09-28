@@ -11,7 +11,7 @@ import type { UserRole } from "@prisma/client";
 import { createUserAction, toggleUserActiveAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 
-const ROLES: UserRole[] = ["OWNER", "SALES_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"];
+const ROLES: UserRole[] = ["OWNER", "GENERAL_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"];
 
 export default async function UserRolePage() {
   await requireModule("user-role");

@@ -23,7 +23,8 @@ export default async function QuotationPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireModule("quotation");
+  const session = await requireModule("quotation");
+  const canApprove = session.role === "OWNER" || session.role === "GENERAL_MANAGER";
   const { status } = await searchParams;
 
   const [quotations, customers, products] = await Promise.all([
@@ -97,6 +98,9 @@ export default async function QuotationPage({
                     <Input name="marginPercent" type="number" min={0} step={0.5} required defaultValue={30} />
                   </Field>
                 </div>
+                <Field label="Tanggal Pengiriman">
+                  <Input name="requestedDeliveryDate" type="date" />
+                </Field>
                 <SubmitButton>Simpan Quotation</SubmitButton>
               </form>
             </Modal>
@@ -122,6 +126,7 @@ export default async function QuotationPage({
               <Th>HPP</Th>
               <Th>Nilai</Th>
               <Th>Margin</Th>
+              <Th>Kirim</Th>
               <Th>Sales</Th>
               <Th>Status</Th>
               <Th>Aksi</Th>
@@ -129,7 +134,7 @@ export default async function QuotationPage({
           </Thead>
           <Tbody>
             {quotations.length === 0 ? (
-              <EmptyRow colSpan={11} />
+              <EmptyRow colSpan={12} />
             ) : (
               quotations.map((q) => (
                 <Tr key={q.id}>
@@ -145,6 +150,7 @@ export default async function QuotationPage({
                   <Td>{formatRupiahCompact(Number(q.hppAmount))}</Td>
                   <Td className="font-semibold text-gray-900">{formatRupiah(Number(q.totalAmount))}</Td>
                   <Td>{formatPercent(Number(q.marginPercent))}</Td>
+                  <Td>{q.requestedDeliveryDate ? formatDate(q.requestedDeliveryDate) : "-"}</Td>
                   <Td>{q.sales?.name ?? "-"}</Td>
                   <Td>
                     <StatusBadge status={q.status} />
@@ -160,7 +166,7 @@ export default async function QuotationPage({
                           </button>
                         </form>
                       ) : null}
-                      {q.status === "SENT" ? (
+                      {q.status === "SENT" && canApprove ? (
                         <>
                           <form action={updateQuotationStatusAction}>
                             <input type="hidden" name="quotationId" value={q.id} />
@@ -177,6 +183,8 @@ export default async function QuotationPage({
                             </button>
                           </form>
                         </>
+                      ) : q.status === "SENT" ? (
+                        <span className="text-[11px] text-gray-400">Menunggu approval Owner/GM</span>
                       ) : null}
                       {q.status === "ACCEPTED" && !q.salesOrder ? (
                         q.customerId ? (

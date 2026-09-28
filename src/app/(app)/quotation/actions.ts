@@ -16,6 +16,10 @@ const quotationSchema = z.object({
   qty: z.coerce.number().int().min(1),
   hppAmount: z.coerce.number().min(0),
   marginPercent: z.coerce.number().min(0).max(500),
+  requestedDeliveryDate: z
+    .string()
+    .optional()
+    .transform((v) => (v ? new Date(v) : undefined)),
 });
 
 export async function createQuotationAction(formData: FormData) {
@@ -27,6 +31,7 @@ export async function createQuotationAction(formData: FormData) {
     qty: formData.get("qty"),
     hppAmount: formData.get("hppAmount"),
     marginPercent: formData.get("marginPercent"),
+    requestedDeliveryDate: formData.get("requestedDeliveryDate") || undefined,
   });
 
   const totalAmount = Math.round(parsed.hppAmount * (1 + parsed.marginPercent / 100));
@@ -55,6 +60,12 @@ export async function updateQuotationStatusAction(formData: FormData) {
   const session = await requireModule("quotation");
   const quotationId = formData.get("quotationId") as string;
   const status = formData.get("status") as QuotationStatus;
+
+  // Accept/Reject quotation adalah keputusan approval - hanya Owner & General
+  // Manager yang boleh melakukannya. Sales hanya bisa kirim (DRAFT -> SENT).
+  if ((status === "ACCEPTED" || status === "REJECTED") && session.role !== "OWNER" && session.role !== "GENERAL_MANAGER") {
+    throw new Error("Hanya Owner atau General Manager yang bisa approve/reject quotation.");
+  }
 
   const quotation = await prisma.quotation.findUniqueOrThrow({ where: { id: quotationId } });
   await prisma.quotation.update({ where: { id: quotationId }, data: { status } });

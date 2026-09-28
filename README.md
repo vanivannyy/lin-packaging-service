@@ -17,7 +17,7 @@ Replika ERP full-modul untuk bisnis percetakan & packaging (`lin-packaging-servi
 - **Kalkulator HPP** - Versi awal pricing engine (akan disesuaikan dengan kalkulator HPP yang sudah dibuat sebelumnya)
 - **Price Master** - Master komponen biaya (paper, finishing, labor, outsourcing, overhead)
 - **Produk** - Master produk & material default
-- **User & Role** - RBAC 8 role (Owner, Sales Manager, Sales, Finance, Warehouse, QC, Purchasing, Production Planner)
+- **User & Role** - RBAC 8 role (Owner, General Manager, Sales, Finance, Warehouse, QC, Purchasing, Production Planner)
 - **Audit Trail** - Log semua aksi penting (tidak ada hard delete, sesuai `.cursorrules`)
 - **Pengaturan** - Profil perusahaan & format penomoran dokumen
 

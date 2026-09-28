@@ -14,7 +14,7 @@ const userSchema = z.object({
   email: z.string().email(),
   department: z.string().optional(),
   position: z.string().optional(),
-  role: z.enum(["OWNER", "SALES_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"]),
+  role: z.enum(["OWNER", "GENERAL_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"]),
   password: z.string().min(6, "Password minimal 6 karakter"),
 });
 

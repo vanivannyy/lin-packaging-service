@@ -19,7 +19,7 @@ datasource db {
 
 enum UserRole {
   OWNER
-  SALES_MANAGER
+  GENERAL_MANAGER
   SALES
   FINANCE
   WAREHOUSE

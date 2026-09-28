@@ -3,7 +3,7 @@ import { NAV_GROUPS } from "@/lib/nav";
 
 export const ROLE_LABEL: Record<UserRole, string> = {
   OWNER: "Owner",
-  SALES_MANAGER: "Sales Manager",
+  GENERAL_MANAGER: "General Manager",
   SALES: "Sales",
   FINANCE: "Finance",
   WAREHOUSE: "Warehouse",
@@ -15,7 +15,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 // Modul yang boleh diakses tiap role. OWNER selalu akses semua.
 export const ROLE_MODULES: Record<UserRole, string[]> = {
   OWNER: ["*"],
-  SALES_MANAGER: [
+  GENERAL_MANAGER: [
     "dashboard",
     "laporan",
     "crm",
@@ -31,12 +31,12 @@ export const ROLE_MODULES: Record<UserRole, string[]> = {
     "kalkulator-hpp",
     "price-master",
   ],
-  SALES: ["dashboard", "crm", "customer", "quotation", "sales-order", "kalkulator-hpp", "design-master"],
+  SALES: ["dashboard", "crm", "customer", "quotation", "sales-order", "kalkulator-hpp"],
   FINANCE: ["dashboard", "laporan", "invoice", "customer"],
   WAREHOUSE: ["dashboard", "material-stok", "purchase-request", "delivery"],
   QC: ["dashboard", "produksi"],
   PURCHASING: ["dashboard", "purchase-request", "material-stok"],
-  PRODUCTION_PLANNER: ["dashboard", "produksi", "delivery", "sales-order", "material-stok", "design-master"],
+  PRODUCTION_PLANNER: ["dashboard", "produksi", "delivery", "sales-order", "material-stok"],
 };
 
 const API_MODULE_PREFIXES: Array<[string, string]> = [

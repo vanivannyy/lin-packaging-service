@@ -22,6 +22,7 @@ export async function GET() {
     { header: "HPP", key: "hpp", width: 16 },
     { header: "Nilai", key: "total", width: 16 },
     { header: "Margin (%)", key: "margin", width: 12 },
+    { header: "Tanggal Pengiriman", key: "requestedDeliveryDate", width: 18 },
     { header: "Sales", key: "sales", width: 18 },
     { header: "Status", key: "status", width: 12 },
   ];
@@ -37,6 +38,7 @@ export async function GET() {
       hpp: Number(q.hppAmount),
       total: Number(q.totalAmount),
       margin: Number(q.marginPercent),
+      requestedDeliveryDate: q.requestedDeliveryDate ? q.requestedDeliveryDate.toISOString().slice(0, 10) : "-",
       sales: q.sales?.name ?? "-",
       status: q.status,
     });
