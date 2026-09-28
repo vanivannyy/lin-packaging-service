@@ -41,7 +41,7 @@ export default async function LoginPage({
               name="email"
               type="email"
               required
-              defaultValue="owner@lin-packaging.com"
+              autoComplete="username"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -50,7 +50,7 @@ export default async function LoginPage({
             <label htmlFor="password" className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
               Password
             </label>
-            <PasswordField defaultValue="password123" />
+            <PasswordField />
           </div>
 
           <button
@@ -59,10 +59,6 @@ export default async function LoginPage({
           >
             Masuk
           </button>
-
-          <p className="mt-4 text-center text-xs text-gray-400">
-            Demo: owner@lin-packaging.com / password123
-          </p>
         </form>
       </div>
     </div>

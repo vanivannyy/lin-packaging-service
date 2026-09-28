@@ -25,12 +25,13 @@ Replika ERP full-modul untuk bisnis percetakan & packaging (`lin-packaging-servi
 
 ```bash
 npm install
-npx prisma migrate dev --name init
+npx prisma migrate deploy
+# isi SEED_OWNER_EMAIL, SEED_OWNER_NAME, dan SEED_OWNER_PASSWORD di .env
 npm run db:seed
 npm run dev
 ```
 
-Login demo: `owner@lin-packaging.com` / `password123` (lihat `prisma/seed.ts` untuk user role lain).
+Branch `main` adalah production. `npm run db:seed` hanya membuat profil perusahaan dan satu akun Owner (`SEED_OWNER_EMAIL`). Data dummy (customer, quotation, stok, user role lain) ada di branch `uat`.
 
 ## Struktur
 
