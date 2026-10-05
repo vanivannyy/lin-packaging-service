@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, Table, Thead, Th, Tbody, Tr, Td, EmptyRow } from "@/components/ui/Table";
@@ -8,13 +8,18 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { UserRole } from "@prisma/client";
-import { createUserAction, toggleUserActiveAction } from "./actions";
+import { createUserAction, toggleUserActiveAction, updateUserAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 
 const ROLES: UserRole[] = ["OWNER", "GENERAL_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"];
 
-export default async function UserRolePage() {
+export default async function UserRolePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
   await requireModule("user-role");
+  const { error, ok } = await searchParams;
   const users = await prisma.user.findMany({ where: { isDeleted: false }, orderBy: { code: "asc" } });
 
   return (
@@ -64,6 +69,15 @@ export default async function UserRolePage() {
         }
       />
 
+      {ok ? (
+        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          Data user berhasil diperbarui.
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      ) : null}
+
       <Card>
         <Table>
           <Thead>
@@ -100,12 +114,53 @@ export default async function UserRolePage() {
                   </Td>
                   <Td className="text-gray-400">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "-"}</Td>
                   <Td>
-                    <form action={toggleUserActiveAction}>
-                      <input type="hidden" name="userId" value={u.id} />
-                      <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
-                        {u.isActive ? "Nonaktifkan" : "Aktifkan"}
-                      </button>
-                    </form>
+                    <div className="flex items-center gap-1.5">
+                      <Modal
+                        title={`Edit ${u.name}`}
+                        trigger={
+                          <button className="flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                            <Pencil size={12} /> Edit
+                          </button>
+                        }
+                      >
+                        <form action={updateUserAction} className="space-y-3">
+                          <input type="hidden" name="userId" value={u.id} />
+                          <Field label="Nama Lengkap">
+                            <Input name="name" required defaultValue={u.name} />
+                          </Field>
+                          <Field label="Email">
+                            <Input name="email" type="email" required defaultValue={u.email} />
+                          </Field>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Field label="Departemen">
+                              <Input name="department" defaultValue={u.department ?? ""} />
+                            </Field>
+                            <Field label="Posisi">
+                              <Input name="position" defaultValue={u.position ?? ""} />
+                            </Field>
+                          </div>
+                          <Field label="Role">
+                            <Select name="role" defaultValue={u.role}>
+                              {ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {ROLE_LABEL[r]}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label="Password baru">
+                            <Input name="password" type="password" placeholder="Kosongkan jika tidak diubah" />
+                          </Field>
+                          <SubmitButton>Simpan Perubahan</SubmitButton>
+                        </form>
+                      </Modal>
+                      <form action={toggleUserActiveAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                          {u.isActive ? "Nonaktifkan" : "Aktifkan"}
+                        </button>
+                      </form>
+                    </div>
                   </Td>
                 </Tr>
               ))
