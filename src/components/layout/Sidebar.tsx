@@ -130,9 +130,21 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="border-t border-white/10 px-4 py-3">
-        <p className="truncate text-sm font-medium text-white">{userName}</p>
-        <p className="text-[11px] uppercase tracking-wide text-slate-500">{ROLE_LABEL[userRole]}</p>
+      <div className="border-t border-white/10 px-3 py-3">
+        <Link
+          href="/akun"
+          onClick={onClose}
+          className={clsx(
+            "block rounded-md px-2 py-2",
+            pathname === "/akun" ? "bg-blue-600 text-white" : "hover:bg-white/5"
+          )}
+        >
+          <p className="truncate text-sm font-medium text-white">{userName}</p>
+          <p className={clsx("text-[11px] uppercase tracking-wide", pathname === "/akun" ? "text-blue-100" : "text-slate-500")}>
+            {ROLE_LABEL[userRole]}
+          </p>
+          <p className={clsx("mt-1 text-[11px]", pathname === "/akun" ? "text-blue-100" : "text-blue-300")}>Ganti password</p>
+        </Link>
       </div>
     </aside>
   );

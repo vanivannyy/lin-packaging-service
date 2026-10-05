@@ -3,16 +3,27 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-export function PasswordField({ defaultValue }: { defaultValue?: string }) {
+export function PasswordField({
+  name = "password",
+  id = "password",
+  autoComplete,
+  defaultValue,
+}: {
+  name?: string;
+  id?: string;
+  autoComplete?: string;
+  defaultValue?: string;
+}) {
   const [visible, setVisible] = useState(false);
 
   return (
     <div className="relative">
       <input
-        id="password"
-        name="password"
+        id={id}
+        name={name}
         type={visible ? "text" : "password"}
         required
+        autoComplete={autoComplete}
         defaultValue={defaultValue}
         className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
       />
