@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
@@ -67,4 +68,48 @@ export async function adjustStockAction(formData: FormData) {
     userId: session.userId,
     source: "WEB",
   });
+}
+
+export async function deleteMaterialAction(formData: FormData) {
+  const session = await requireModule("material-stok");
+  if (session.role !== "OWNER") {
+    redirect("/material-stok?error=" + encodeURIComponent("Hanya Owner yang bisa menghapus material"));
+  }
+
+  const id = String(formData.get("materialId") ?? "");
+  const material = await prisma.material.findFirst({ where: { id, isDeleted: false } });
+  if (!material) {
+    redirect("/material-stok?error=" + encodeURIComponent("Material tidak ditemukan"));
+  }
+
+  const pendingRequests = await prisma.purchaseRequest.findMany({
+    where: { materialId: material.id, isDeleted: false, status: "PENDING" },
+    select: { id: true, note: true },
+  });
+
+  await prisma.$transaction([
+    prisma.material.update({ where: { id: material.id }, data: { isDeleted: true } }),
+    ...pendingRequests.map((request) =>
+      prisma.purchaseRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "REJECTED",
+          note: [request.note, "Dibatalkan karena material dihapus."].filter(Boolean).join(" "),
+        },
+      }),
+    ),
+  ]);
+
+  await logAudit({
+    userId: session.userId,
+    module: "material",
+    action: "DELETE",
+    referenceCode: material.sku,
+    oldValue: { isDeleted: false, name: material.name },
+    newValue: { isDeleted: true },
+  });
+
+  revalidatePath("/material-stok", "layout");
+  revalidatePath("/purchase-request");
+  redirect("/material-stok?ok=deleted");
 }

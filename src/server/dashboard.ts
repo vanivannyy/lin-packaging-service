@@ -46,6 +46,7 @@ export async function getDashboardData() {
     overdueInvoices,
     activeWorkOrdersForAlerts,
     rejectAgg,
+    clientFinishedGoods,
   ] = await Promise.all([
     prisma.salesOrder.findMany({
       where: { createdAt: { gte: monthStart }, isDeleted: false, status: { not: "CANCELLED" } },
@@ -95,6 +96,11 @@ export async function getDashboardData() {
     prisma.workOrder.aggregate({
       _avg: { rejectRatePercent: true },
       where: { isDeleted: false, rejectRatePercent: { gt: 0 } },
+    }),
+    prisma.clientFinishedGoodsItem.findMany({
+      where: { isDeleted: false, isActive: true },
+      include: { customer: { select: { id: true, name: true, code: true } } },
+      orderBy: [{ customer: { name: "asc" } }, { itemName: "asc" }],
     }),
   ]);
 
@@ -206,6 +212,26 @@ export async function getDashboardData() {
     businessAlerts: businessAlerts.slice(0, 12),
     pipeline,
     monthlyTrend,
+    clientFinishedGoods: clientFinishedGoods.map((it) => {
+      const linQty = toNum(it.linWarehouseQty);
+      const clientQty = toNum(it.clientWarehouseQty);
+      const minQty = toNum(it.minStockQty);
+      return {
+        id: it.id,
+        itemName: it.itemName,
+        sku: it.sku,
+        unit: it.unit,
+        customerName: it.customer.name,
+        customerCode: it.customer.code,
+        linWarehouseQty: linQty,
+        clientWarehouseQty: clientQty,
+        minStockQty: minQty,
+        isLow: clientQty <= minQty,
+      };
+    }),
+    clientFinishedGoodsLowCount: clientFinishedGoods.filter(
+      (it) => toNum(it.clientWarehouseQty) <= toNum(it.minStockQty),
+    ).length,
   };
 }
 

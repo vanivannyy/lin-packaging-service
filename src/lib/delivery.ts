@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
+import { recordProductionIn } from "@/lib/client-stock";
 
 // Dipanggil saat Work Order selesai packing (papan produksi) - otomatis siapkan
 // Sales Order untuk pengiriman & buat kartu di papan Delivery (stage READY).
@@ -13,7 +14,18 @@ export async function ensureDeliveryOrderForSalesOrder(salesOrderId: string) {
   }
 
   const code = await generateCode("deliveryOrder");
-  return prisma.deliveryOrder.create({
+  const deliveryOrder = await prisma.deliveryOrder.create({
     data: { code, salesOrderId, stage: "READY" },
   });
+
+  // Sinkron ke app mobile klien: barang jadi sudah masuk gudang Lin Packaging,
+  // siap dikirim. Dibungkus try/catch supaya kegagalan sinkron stok klien
+  // (fitur sekunder) tidak sampai menggagalkan proses produksi utama.
+  try {
+    await recordProductionIn(salesOrderId, deliveryOrder.code);
+  } catch (error) {
+    console.error("Gagal sinkron stok klien (production in):", error);
+  }
+
+  return deliveryOrder;
 }

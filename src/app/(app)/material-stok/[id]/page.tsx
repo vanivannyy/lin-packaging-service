@@ -7,8 +7,9 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, Input, TextArea, SubmitButton } from "@/components/ui/FormField";
 import { formatDateTime, formatNumber, formatRupiah } from "@/lib/format";
 import { MATERIAL_CATEGORY_LABEL, STOCK_MOVEMENT_SOURCE_LABEL, STOCK_MOVEMENT_TYPE_LABEL, stockMovementSourceLabel } from "@/lib/labels";
+import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { requireModule } from "@/lib/require-session";
-import { adjustStockAction } from "../actions";
+import { adjustStockAction, deleteMaterialAction } from "../actions";
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -25,7 +26,8 @@ function signedQty(qty: number) {
 }
 
 export default async function MaterialDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModule("material-stok");
+  const session = await requireModule("material-stok");
+  const canDelete = session.role === "OWNER";
   const { id } = await params;
 
   const material = await prisma.material.findFirst({
@@ -109,6 +111,17 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
           >
             Barcode
           </Link>
+          {canDelete ? (
+            <form action={deleteMaterialAction}>
+              <input type="hidden" name="materialId" value={material.id} />
+              <ConfirmSubmitButton
+                confirmMessage={`Hapus material "${material.name}"? Material disembunyikan dari daftar. Riwayat stok tetap tersimpan.`}
+                className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+              >
+                Hapus
+              </ConfirmSubmitButton>
+            </form>
+          ) : null}
           <Link
             href="/material-stok"
             className="rounded-md border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"

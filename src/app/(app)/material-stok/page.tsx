@@ -7,12 +7,19 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, Input, Select, TextArea, SubmitButton } from "@/components/ui/FormField";
 import { formatRupiah, formatNumber } from "@/lib/format";
 import { MATERIAL_CATEGORY_LABEL } from "@/lib/labels";
-import { createMaterialAction, adjustStockAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
+import { createMaterialAction, adjustStockAction, deleteMaterialAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 import { autoCreatePurchaseRequestsForAllLowStock } from "@/lib/purchase-auto";
 
-export default async function MaterialStokPage() {
-  await requireModule("material-stok");
+export default async function MaterialStokPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
+  const session = await requireModule("material-stok");
+  const { error, ok } = await searchParams;
+  const canDelete = session.role === "OWNER";
   await autoCreatePurchaseRequestsForAllLowStock();
   const [materials, suppliers] = await Promise.all([
     prisma.material.findMany({ where: { isDeleted: false }, include: { supplier: true }, orderBy: { name: "asc" } }),
@@ -87,6 +94,15 @@ export default async function MaterialStokPage() {
           </Modal>
         }
       />
+
+      {ok === "deleted" ? (
+        <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          Material berhasil dihapus.
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      ) : null}
 
       <Card>
         <Table>
@@ -175,6 +191,16 @@ export default async function MaterialStokPage() {
                         >
                           <Barcode size={13} /> Barcode
                         </Link>
+                        {canDelete ? (
+                          <form action={deleteMaterialAction}>
+                            <input type="hidden" name="materialId" value={m.id} />
+                            <ConfirmSubmitButton
+                              confirmMessage={`Hapus material "${m.name}"? Material disembunyikan dari daftar. Riwayat stok tetap tersimpan.`}
+                            >
+                              Hapus
+                            </ConfirmSubmitButton>
+                          </form>
+                        ) : null}
                       </div>
                     </Td>
                   </Tr>
