@@ -21,7 +21,8 @@ export type NavItem = {
     | "design"
     | "userRole"
     | "audit"
-    | "settings";
+    | "settings"
+    | "clientApp";
 };
 
 export type NavGroup = {
@@ -53,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: "delivery", label: "Delivery", href: "/delivery", icon: "delivery" },
       { key: "purchase-request", label: "Purchase Request", href: "/purchase-request", icon: "purchase" },
       { key: "material-stok", label: "Material & Stok", href: "/material-stok", icon: "material" },
+      { key: "client-stock", label: "Stok Klien (App)", href: "/stok-klien", icon: "clientApp" },
     ],
   },
   {

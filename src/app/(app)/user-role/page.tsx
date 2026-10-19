@@ -6,12 +6,9 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, Input, Select, SubmitButton } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateTime } from "@/lib/format";
-import { ROLE_LABEL } from "@/lib/roles";
-import type { UserRole } from "@prisma/client";
+import { ROLE_LABEL, USER_ROLES } from "@/lib/roles";
 import { createUserAction, toggleUserActiveAction, updateUserAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
-
-const ROLES: UserRole[] = ["OWNER", "GENERAL_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"];
 
 export default async function UserRolePage({
   searchParams,
@@ -53,7 +50,7 @@ export default async function UserRolePage({
               </div>
               <Field label="Role">
                 <Select name="role" defaultValue="SALES">
-                  {ROLES.map((r) => (
+                  {USER_ROLES.map((r) => (
                     <option key={r} value={r}>
                       {ROLE_LABEL[r]}
                     </option>
@@ -141,7 +138,7 @@ export default async function UserRolePage({
                           </div>
                           <Field label="Role">
                             <Select name="role" defaultValue={u.role}>
-                              {ROLES.map((r) => (
+                              {USER_ROLES.map((r) => (
                                 <option key={r} value={r}>
                                   {ROLE_LABEL[r]}
                                 </option>

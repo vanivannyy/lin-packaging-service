@@ -23,6 +23,7 @@ import {
   UserCog,
   History,
   Settings,
+  Smartphone,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const ICON_MAP: Record<NavItem["icon"], LucideIcon> = {
   userRole: UserCog,
   audit: History,
   settings: Settings,
+  clientApp: Smartphone,
 };
 
 export function Sidebar({

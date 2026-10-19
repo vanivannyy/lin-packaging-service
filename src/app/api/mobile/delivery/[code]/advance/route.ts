@@ -4,6 +4,7 @@ import { canAccessModule } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { findDeliveryByCode } from "@/lib/mobile-delivery";
+import { recordDeliveryOut } from "@/lib/client-stock";
 import type { DeliveryStage } from "@prisma/client";
 
 const NEXT_STAGE: Record<DeliveryStage, DeliveryStage | null> = {
@@ -45,6 +46,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
 
   if (toStage === "DELIVERED") {
     await prisma.salesOrder.update({ where: { id: delivery.salesOrderId }, data: { status: "DELIVERED" } });
+    try {
+      await recordDeliveryOut(delivery.salesOrderId, delivery.code);
+    } catch (error) {
+      console.error("Gagal sinkron stok klien (delivery out):", error);
+    }
   }
 
   await logAudit({

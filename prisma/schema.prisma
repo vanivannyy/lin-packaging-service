@@ -26,6 +26,7 @@ enum UserRole {
   QC
   PURCHASING
   PRODUCTION_PLANNER
+  DESIGN
 }
 
 enum LeadStage {
@@ -154,6 +155,20 @@ enum AuditAction {
   REJECT
 }
 
+// Sisi stok yang dicatat di satu pergerakan ClientStockMovement.
+enum ClientStockSide {
+  LIN_WAREHOUSE // stok barang jadi siap kirim di gudang Lin Packaging
+  CLIENT_WAREHOUSE // stok yang (dilaporkan) ada di gudang klien sendiri
+}
+
+// Jenis pergerakan stok barang jadi klien - menentukan siapa/apa yang memicu perubahan.
+enum ClientStockMovementType {
+  PRODUCTION_IN // otomatis: Work Order selesai produksi -> tambah stok gudang Lin
+  DELIVERY_OUT // otomatis: Delivery Order sampai (DELIVERED) -> kurangi stok gudang Lin
+  ADMIN_ADJUSTMENT // manual: staff/admin koreksi stok lewat web app
+  CLIENT_REPORT // manual: klien input sendiri stok terkini di gudangnya lewat app mobile klien
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -173,16 +188,17 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  leads            Lead[]
-  customers        Customer[]
-  quotations       Quotation[]
-  purchaseRequests PurchaseRequest[]        @relation("RequestedBy")
-  approvedRequests PurchaseRequest[]        @relation("ApprovedBy")
-  auditLogs        AuditTrail[]
-  notifications    Notification[]
-  productionLogs   WorkOrderProductionLog[]
-  qcChecks         WorkOrderQcCheck[]
-  stockMovements   StockMovement[]
+  leads                Lead[]
+  customers            Customer[]
+  quotations           Quotation[]
+  purchaseRequests     PurchaseRequest[]        @relation("RequestedBy")
+  approvedRequests     PurchaseRequest[]        @relation("ApprovedBy")
+  auditLogs            AuditTrail[]
+  notifications        Notification[]
+  productionLogs       WorkOrderProductionLog[]
+  qcChecks             WorkOrderQcCheck[]
+  stockMovements       StockMovement[]
+  clientStockMovements ClientStockMovement[]
 
   @@index([email])
   @@index([role, isActive])
@@ -242,6 +258,9 @@ model Customer {
   salesOrders SalesOrder[]
   invoices    Invoice[]
 
+  clientAccounts     ClientAccount[]
+  finishedGoodsItems ClientFinishedGoodsItem[]
+
   @@index([name])
   @@index([code])
   @@index([isActive, isDeleted])
@@ -270,6 +289,8 @@ model Product {
   quotations  Quotation[]
   salesOrders SalesOrder[]
   designs     DesignMaster[]
+
+  clientFinishedGoodsItems ClientFinishedGoodsItem[]
 
   @@index([name])
   @@index([category, isDeleted])
@@ -617,6 +638,108 @@ model DeliveryOrder {
   updatedAt    DateTime      @updatedAt
 
   @@index([stage])
+}
+
+// ============================================================
+// CLIENT PORTAL - APP MOBILE MONITOR STOK BARANG JADI KLIEN
+// Terpisah dari User/UserRole (staff internal) karena ini akun eksternal
+// milik perusahaan klien, hanya boleh lihat & lapor stok miliknya sendiri.
+// ============================================================
+
+// Akun login untuk klien (PIC gudang/pembelian di perusahaan klien).
+// Satu Customer bisa punya lebih dari satu akun (multi-PIC).
+model ClientAccount {
+  id           String    @id @default(cuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id])
+  name         String // nama PIC
+  email        String    @unique
+  passwordHash String
+  phone        String?
+  isActive     Boolean   @default(true)
+  isDeleted    Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  stockMovements ClientStockMovement[]
+  notifications  ClientNotification[]
+
+  @@index([customerId])
+}
+
+// Item barang jadi milik satu klien - dibuat otomatis saat Work Order klien
+// tersebut selesai produksi (lihat lib/client-stock.ts), bisa juga dibuat/
+// dikoreksi manual oleh admin lewat web app.
+model ClientFinishedGoodsItem {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id])
+  itemName   String // snapshot nama produk/barang, tetap tampil walau Product berubah
+  sku        String?
+  unit       String   @default("PCS")
+
+  // Stok siap kirim di gudang Lin Packaging — otomatis bertambah saat WO
+  // selesai produksi, berkurang saat Delivery Order sampai (DELIVERED).
+  linWarehouseQty Decimal @default(0) @db.Decimal(15, 3)
+
+  // Stok yang (terakhir) dilaporkan ada di gudang klien sendiri — HANYA
+  // berubah lewat laporan klien dari app mobile atau koreksi admin, supaya
+  // Lin Packaging bisa siap-siap produksi kalau klien mulai menipis.
+  clientWarehouseQty Decimal   @default(0) @db.Decimal(15, 3)
+  minStockQty        Decimal   @default(0) @db.Decimal(15, 3)
+  clientReportedAt   DateTime?
+
+  isActive  Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements ClientStockMovement[]
+
+  @@index([customerId, isDeleted])
+  @@index([productId])
+}
+
+// Audit trail tiap perubahan stok barang jadi klien (wajib, tidak boleh hard delete).
+model ClientStockMovement {
+  id           String                  @id @default(cuid())
+  itemId       String
+  item         ClientFinishedGoodsItem @relation(fields: [itemId], references: [id])
+  side         ClientStockSide
+  type         ClientStockMovementType
+  quantity     Decimal                 @db.Decimal(15, 3) // signed delta
+  resultingQty Decimal                 @db.Decimal(15, 3) // snapshot setelah perubahan
+
+  note          String?
+  referenceCode String? // kode WO/DO pemicu, kalau otomatis
+
+  actorUserId          String?
+  actorUser            User?          @relation(fields: [actorUserId], references: [id])
+  actorClientAccountId String?
+  actorClientAccount   ClientAccount? @relation(fields: [actorClientAccountId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([itemId, createdAt])
+}
+
+// Notifikasi in-app khusus app mobile klien (terpisah dari Notification staff internal).
+model ClientNotification {
+  id              String        @id @default(cuid())
+  clientAccountId String
+  clientAccount   ClientAccount @relation(fields: [clientAccountId], references: [id])
+  title           String
+  message         String
+  href            String?
+  type            String        @default("STATUS") // STATUS | LOW_STOCK
+  referenceCode   String?
+  isRead          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  @@index([clientAccountId, isRead, createdAt])
 }
 
 // ============================================================

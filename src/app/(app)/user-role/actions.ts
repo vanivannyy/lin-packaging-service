@@ -9,6 +9,7 @@ import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
 import { createSession } from "@/lib/session";
+import { USER_ROLES } from "@/lib/roles";
 import type { UserRole } from "@prisma/client";
 
 const userSchema = z.object({
@@ -16,7 +17,7 @@ const userSchema = z.object({
   email: z.string().email(),
   department: z.string().optional(),
   position: z.string().optional(),
-  role: z.enum(["OWNER", "GENERAL_MANAGER", "SALES", "FINANCE", "WAREHOUSE", "QC", "PURCHASING", "PRODUCTION_PLANNER"]),
+  role: z.enum(USER_ROLES),
   password: z.string().min(6, "Password minimal 6 karakter"),
 });
 

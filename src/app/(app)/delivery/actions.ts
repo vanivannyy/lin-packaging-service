@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
+import { recordDeliveryOut } from "@/lib/client-stock";
 
 const DRAGGABLE_STAGES: DeliveryStage[] = ["READY", "IN_DELIVERY", "PENDING", "DELIVERED"];
 
@@ -37,6 +38,11 @@ export async function moveDeliveryStageAction(deliveryId: string, toStage: Deliv
 
   if (toStage === "DELIVERED") {
     await prisma.salesOrder.update({ where: { id: delivery.salesOrderId }, data: { status: "DELIVERED" } });
+    try {
+      await recordDeliveryOut(delivery.salesOrderId, delivery.code);
+    } catch (error) {
+      console.error("Gagal sinkron stok klien (delivery out):", error);
+    }
   }
 
   await logAudit({

@@ -93,3 +93,15 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   QRIS: "QRIS",
   CARD: "Card",
 };
+
+export const CLIENT_STOCK_SIDE_LABEL: Record<string, string> = {
+  LIN_WAREHOUSE: "Gudang Lin Packaging",
+  CLIENT_WAREHOUSE: "Gudang Klien",
+};
+
+export const CLIENT_STOCK_TYPE_LABEL: Record<string, string> = {
+  PRODUCTION_IN: "Hasil produksi",
+  DELIVERY_OUT: "Pengiriman",
+  ADMIN_ADJUSTMENT: "Koreksi admin",
+  CLIENT_REPORT: "Laporan klien",
+};

@@ -10,7 +10,32 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   QC: "QC",
   PURCHASING: "Purchasing",
   PRODUCTION_PLANNER: "Production Planner",
+  DESIGN: "Design",
 };
+
+export const USER_ROLES = [
+  "OWNER",
+  "GENERAL_MANAGER",
+  "SALES",
+  "FINANCE",
+  "WAREHOUSE",
+  "QC",
+  "PURCHASING",
+  "PRODUCTION_PLANNER",
+  "DESIGN",
+] as const satisfies readonly UserRole[];
+
+// Planner dan Design memakai menu yang sama. Design ditambah Master Design.
+const PLANNER_MODULES = [
+  "dashboard",
+  "customer",
+  "kalkulator-hpp",
+  "sales-order",
+  "produksi",
+  "delivery",
+  "material-stok",
+  "client-stock",
+];
 
 // Modul yang boleh diakses tiap role. OWNER selalu akses semua.
 export const ROLE_MODULES: Record<UserRole, string[]> = {
@@ -30,13 +55,26 @@ export const ROLE_MODULES: Record<UserRole, string[]> = {
     "design-master",
     "kalkulator-hpp",
     "price-master",
+    "client-stock",
   ],
-  SALES: ["dashboard", "crm", "customer", "quotation", "sales-order", "kalkulator-hpp"],
+  SALES: [
+    "dashboard",
+    "crm",
+    "customer",
+    "quotation",
+    "sales-order",
+    "kalkulator-hpp",
+    "price-master",
+    "produksi",
+    "delivery",
+    "client-stock",
+  ],
   FINANCE: ["dashboard", "laporan", "invoice", "customer"],
-  WAREHOUSE: ["dashboard", "material-stok", "purchase-request", "delivery"],
+  WAREHOUSE: ["dashboard", "material-stok", "purchase-request", "delivery", "client-stock"],
   QC: ["dashboard", "produksi"],
-  PURCHASING: ["dashboard", "purchase-request", "material-stok"],
-  PRODUCTION_PLANNER: ["dashboard", "produksi", "delivery", "sales-order", "material-stok"],
+  PURCHASING: ["dashboard", "purchase-request", "material-stok", "produk", "produk-kategori"],
+  PRODUCTION_PLANNER: PLANNER_MODULES,
+  DESIGN: [...PLANNER_MODULES, "design-master"],
 };
 
 const API_MODULE_PREFIXES: Array<[string, string]> = [
