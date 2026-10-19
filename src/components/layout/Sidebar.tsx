@@ -73,7 +73,7 @@ export function Sidebar({
         "flex h-[100dvh] w-[min(16.5rem,85vw)] shrink-0 flex-col bg-navy-950 text-slate-300",
         "fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
         "transition-transform duration-200 ease-out",
-        "shadow-xl md:static md:h-full md:w-60 md:translate-x-0 md:pt-0 md:pb-0 md:shadow-none",
+        "shadow-xl md:relative md:z-[60] md:h-full md:w-60 md:translate-x-0 md:pt-0 md:pb-0 md:shadow-none",
         open ? "translate-x-0" : "-translate-x-full pointer-events-none md:pointer-events-auto"
       )}
     >
