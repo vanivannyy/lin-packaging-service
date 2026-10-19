@@ -46,7 +46,10 @@ export default async function PriceMasterPage({
             <Modal
               title="Tambah Harga Baru"
               trigger={
-                <button className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
                   <Plus size={15} /> Harga Baru
                 </button>
               }
@@ -97,8 +100,11 @@ export default async function PriceMasterPage({
                       <Modal
                         title={`Edit Harga - ${item.name}`}
                         trigger={
-                          <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
-                            <span className="text-[13px]">↻</span>
+                          <button
+                            type="button"
+                            className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                          >
+                            Edit
                           </button>
                         }
                       >
@@ -106,8 +112,11 @@ export default async function PriceMasterPage({
                       </Modal>
                       <form action={toggleActivePriceMasterAction}>
                         <input type="hidden" name="id" value={item.id} />
-                        <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
-                          Edit
+                        <button
+                          type="submit"
+                          className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                        >
+                          {item.isActive ? "Nonaktif" : "Aktifkan"}
                         </button>
                       </form>
                     </div>
