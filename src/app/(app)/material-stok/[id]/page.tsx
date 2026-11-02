@@ -5,11 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { Card, Table, Thead, Th, Tbody, Tr, Td, EmptyRow } from "@/components/ui/Table";
 import { Modal } from "@/components/ui/Modal";
 import { Field, Input, TextArea, SubmitButton } from "@/components/ui/FormField";
+import { MaterialForm } from "../MaterialForm";
 import { formatDateTime, formatNumber, formatRupiah } from "@/lib/format";
 import { MATERIAL_CATEGORY_LABEL, STOCK_MOVEMENT_SOURCE_LABEL, STOCK_MOVEMENT_TYPE_LABEL, stockMovementSourceLabel } from "@/lib/labels";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { requireModule } from "@/lib/require-session";
-import { adjustStockAction, deleteMaterialAction } from "../actions";
+import { adjustStockAction, deleteMaterialAction, updateMaterialAction } from "../actions";
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -27,13 +28,16 @@ function signedQty(qty: number) {
 
 export default async function MaterialDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireModule("material-stok");
-  const canDelete = session.role === "OWNER";
+  const canManage = session.role === "OWNER";
   const { id } = await params;
 
-  const material = await prisma.material.findFirst({
-    where: { id, isDeleted: false },
-    include: { supplier: true },
-  });
+  const [material, suppliers] = await Promise.all([
+    prisma.material.findFirst({
+      where: { id, isDeleted: false },
+      include: { supplier: true },
+    }),
+    prisma.supplier.findMany({ where: { isDeleted: false }, orderBy: { name: "asc" } }),
+  ]);
   if (!material) notFound();
 
   const stockLogs = await prisma.stockMovement.findMany({
@@ -82,6 +86,26 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
           <p className="mt-1 text-sm font-medium text-blue-600">{material.sku}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canManage ? (
+            <Modal
+              title={`Edit Material - ${material.sku}`}
+              trigger={
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  Edit
+                </button>
+              }
+            >
+              <MaterialForm
+                action={updateMaterialAction}
+                suppliers={suppliers}
+                submitLabel="Simpan Perubahan"
+                defaultValues={{ ...material, supplierName: material.supplier?.name }}
+              />
+            </Modal>
+          ) : null}
           <Modal
             title={`Sesuaikan Stok - ${material.name}`}
             trigger={
@@ -111,7 +135,7 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
           >
             Barcode
           </Link>
-          {canDelete ? (
+          {canManage ? (
             <form action={deleteMaterialAction}>
               <input type="hidden" name="materialId" value={material.id} />
               <ConfirmSubmitButton
@@ -215,6 +239,8 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
                 let title = log.action.replaceAll("_", " ");
                 if (log.action === "CREATE") {
                   title = `Material dibuat${newValue?.name ? ` · ${newValue.name}` : ""}`;
+                } else if (log.action === "UPDATE") {
+                  title = `Data material diperbarui${newValue?.name ? ` · ${newValue.name}` : ""}`;
                 } else if (typeof newValue?.adjustment === "number") {
                   const sourceLabel = STOCK_MOVEMENT_SOURCE_LABEL[newValue.source ?? ""] ?? "";
                   const ref = newValue.referenceCode ? ` · ${newValue.referenceCode}` : "";
