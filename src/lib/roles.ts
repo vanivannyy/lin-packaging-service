@@ -31,6 +31,8 @@ const PLANNER_MODULES = [
   "customer",
   "quotation",
   "kalkulator-hpp",
+  "produk",
+  "produk-kategori",
   "sales-order",
   "produksi",
   "delivery",
