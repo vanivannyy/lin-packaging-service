@@ -22,18 +22,33 @@ const materialSchema = z.object({
   minStockQty: z.coerce.number().min(0).default(0),
 });
 
-export async function createMaterialAction(formData: FormData) {
-  const session = await requireModule("material-stok");
-  const parsed = materialSchema.parse({
+function optionalText(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+  return raw || undefined;
+}
+
+function optionalNumber(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return undefined;
+  return Number(raw);
+}
+
+function parseMaterialForm(formData: FormData) {
+  return materialSchema.parse({
     name: formData.get("name"),
     category: (formData.get("category") as MaterialCategory) || "PAPER",
-    gsm: formData.get("gsm") || undefined,
-    size: formData.get("size") || undefined,
-    supplierId: formData.get("supplierId") || undefined,
+    gsm: optionalNumber(formData.get("gsm")),
+    size: optionalText(formData.get("size")),
+    supplierId: optionalText(formData.get("supplierId")),
     pricePerUnit: formData.get("pricePerUnit"),
     unit: formData.get("unit") || "LEMBAR",
     minStockQty: formData.get("minStockQty") || 0,
   });
+}
+
+export async function createMaterialAction(formData: FormData) {
+  const session = await requireModule("material-stok");
+  const parsed = parseMaterialForm(formData);
 
   const sku = await generateCode("material");
   const material = await prisma.material.create({ data: { ...parsed, sku } });
@@ -68,6 +83,56 @@ export async function adjustStockAction(formData: FormData) {
     userId: session.userId,
     source: "WEB",
   });
+}
+
+export async function updateMaterialAction(formData: FormData) {
+  const session = await requireModule("material-stok");
+  if (session.role !== "OWNER") {
+    redirect("/material-stok?error=" + encodeURIComponent("Hanya Owner yang bisa mengubah material"));
+  }
+
+  const id = String(formData.get("materialId") ?? "");
+  const parsed = parseMaterialForm(formData);
+  const material = await prisma.material.findFirst({ where: { id, isDeleted: false } });
+  if (!material) {
+    redirect("/material-stok?error=" + encodeURIComponent("Material tidak ditemukan"));
+  }
+
+  const data = {
+    name: parsed.name,
+    category: parsed.category,
+    gsm: parsed.gsm ?? null,
+    size: parsed.size ?? null,
+    supplierId: parsed.supplierId ?? null,
+    pricePerUnit: parsed.pricePerUnit,
+    unit: parsed.unit,
+    minStockQty: parsed.minStockQty,
+  };
+
+  await prisma.material.update({ where: { id: material.id }, data });
+
+  await logAudit({
+    userId: session.userId,
+    module: "material",
+    action: "UPDATE",
+    referenceCode: material.sku,
+    oldValue: {
+      name: material.name,
+      category: material.category,
+      gsm: material.gsm,
+      size: material.size,
+      supplierId: material.supplierId,
+      pricePerUnit: Number(material.pricePerUnit),
+      unit: material.unit,
+      minStockQty: Number(material.minStockQty),
+    },
+    newValue: data,
+  });
+  await autoCreatePurchaseRequestIfNeeded(material.id);
+
+  revalidatePath("/material-stok", "layout");
+  revalidatePath(`/material-stok/${material.id}`);
+  revalidatePath("/purchase-request");
 }
 
 export async function deleteMaterialAction(formData: FormData) {
