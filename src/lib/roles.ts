@@ -29,6 +29,7 @@ export const USER_ROLES = [
 const PLANNER_MODULES = [
   "dashboard",
   "customer",
+  "quotation",
   "kalkulator-hpp",
   "sales-order",
   "produksi",
