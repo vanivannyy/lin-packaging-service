@@ -2,6 +2,7 @@ import { Field, Input, Select, SubmitButton } from "@/components/ui/FormField";
 
 export type MaterialFormValues = {
   id: string;
+  sku: string;
   name: string;
   category: string;
   gsm: number | null;
@@ -10,6 +11,8 @@ export type MaterialFormValues = {
   supplierName?: string | null;
   pricePerUnit: unknown;
   unit: string;
+  stockQty: unknown;
+  reservedQty: unknown;
   minStockQty: unknown;
 };
 
@@ -27,6 +30,11 @@ export function MaterialForm({
   return (
     <form action={action} className="space-y-3">
       {defaultValues ? <input type="hidden" name="materialId" value={defaultValues.id} /> : null}
+      {defaultValues ? (
+        <Field label="SKU">
+          <Input name="sku" required defaultValue={defaultValues.sku} placeholder="MTR-2026-00001" />
+        </Field>
+      ) : null}
       <Field label="Nama Material">
         <Input name="name" required defaultValue={defaultValues?.name} placeholder="Art Carton 260 GSM" />
       </Field>
@@ -80,12 +88,32 @@ export function MaterialForm({
             name="minStockQty"
             type="number"
             min={0}
+            step="any"
             defaultValue={defaultValues ? Number(defaultValues.minStockQty) : 0}
           />
         </Field>
       </div>
       {defaultValues ? (
-        <p className="text-xs text-gray-400">Stok tetap diubah lewat tombol Adjust.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Stok">
+            <Input name="stockQty" type="number" min={0} step="any" required defaultValue={Number(defaultValues.stockQty)} />
+          </Field>
+          <Field label="Reserved">
+            <Input
+              name="reservedQty"
+              type="number"
+              min={0}
+              step="any"
+              required
+              defaultValue={Number(defaultValues.reservedQty)}
+            />
+          </Field>
+        </div>
+      ) : null}
+      {defaultValues ? (
+        <p className="text-xs text-gray-400">
+          Tersedia dihitung dari stok dikurangi reserved. Perubahan stok dicatat di log stok.
+        </p>
       ) : null}
       <SubmitButton>{submitLabel}</SubmitButton>
     </form>
