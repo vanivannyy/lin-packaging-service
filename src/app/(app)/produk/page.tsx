@@ -3,16 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, Table, Thead, Th, Tbody, Tr, Td, EmptyRow } from "@/components/ui/Table";
 import { Modal } from "@/components/ui/Modal";
-import { Field, Input, Select, TextArea, SubmitButton } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
-import { createProductAction, deleteProductAction, toggleProductActiveAction } from "./actions";
+import { ProductForm } from "./ProductForm";
+import { createProductAction, deleteProductAction, toggleProductActiveAction, updateProductAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 
-const CATEGORY_OPTIONS = ["BOX", "FOLDING_CARTON", "BROCHURE", "PAPER_BAG", "STICKER", "WOBBLER", "CUSTOM"];
-
-export default async function ProdukPage() {
-  await requireModule("produk");
+export default async function ProdukPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const session = await requireModule("produk");
+  const { error } = await searchParams;
+  const canEdit = session.role === "OWNER";
   const [products, materials, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isDeleted: false },
@@ -37,52 +41,19 @@ export default async function ProdukPage() {
               </button>
             }
           >
-            <form action={createProductAction} className="space-y-3">
-              <Field label="Nama Produk">
-                <Input name="name" required placeholder="Custom Food Packaging Box" />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Kategori (legacy)">
-                  <Select name="category" defaultValue="BOX">
-                    {CATEGORY_OPTIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c.replaceAll("_", " ")}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Unit">
-                  <Input name="unit" defaultValue="PCS" />
-                </Field>
-              </div>
-              <Field label="Kategori Produk (Master Kategori)">
-                <Select name="categoryId" defaultValue="">
-                  <option value="">- Tanpa Kategori Master -</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Material Default">
-                <Select name="defaultMaterialId" defaultValue="">
-                  <option value="">- Pilih Material -</option>
-                  {materials.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Spesifikasi">
-                <TextArea name="specification" rows={2} placeholder="Sesuai artwork customer" />
-              </Field>
-              <SubmitButton>Simpan Produk</SubmitButton>
-            </form>
+            <ProductForm
+              action={createProductAction}
+              categories={categories}
+              materials={materials}
+              submitLabel="Simpan Produk"
+            />
           </Modal>
         }
       />
+
+      {error ? (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      ) : null}
 
       <Card>
         <Table>
@@ -119,6 +90,31 @@ export default async function ProdukPage() {
                   </Td>
                   <Td>
                     <div className="flex items-center gap-1.5">
+                      {canEdit ? (
+                        <Modal
+                          title={`Edit Produk - ${p.code}`}
+                          trigger={
+                            <button
+                              type="button"
+                              className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                            >
+                              Edit
+                            </button>
+                          }
+                        >
+                          <ProductForm
+                            action={updateProductAction}
+                            categories={categories}
+                            materials={materials}
+                            submitLabel="Simpan Perubahan"
+                            defaultValues={{
+                              ...p,
+                              categoryName: p.productCategory?.name,
+                              defaultMaterialName: p.defaultMaterial?.name,
+                            }}
+                          />
+                        </Modal>
+                      ) : null}
                       <form action={toggleProductActiveAction}>
                         <input type="hidden" name="productId" value={p.id} />
                         <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">

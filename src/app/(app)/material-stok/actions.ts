@@ -22,6 +22,12 @@ const materialSchema = z.object({
   minStockQty: z.coerce.number().min(0).default(0),
 });
 
+const materialEditSchema = materialSchema.extend({
+  sku: z.string().trim().min(1, "SKU wajib diisi"),
+  stockQty: z.coerce.number().min(0),
+  reservedQty: z.coerce.number().min(0),
+});
+
 function optionalText(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim();
   return raw || undefined;
@@ -92,13 +98,29 @@ export async function updateMaterialAction(formData: FormData) {
   }
 
   const id = String(formData.get("materialId") ?? "");
-  const parsed = parseMaterialForm(formData);
+  const parsed = materialEditSchema.parse({
+    ...parseMaterialForm(formData),
+    sku: formData.get("sku"),
+    stockQty: formData.get("stockQty"),
+    reservedQty: formData.get("reservedQty"),
+  });
   const material = await prisma.material.findFirst({ where: { id, isDeleted: false } });
   if (!material) {
     redirect("/material-stok?error=" + encodeURIComponent("Material tidak ditemukan"));
   }
 
+  const sku = parsed.sku.trim();
+  const skuTaken = await prisma.material.findFirst({
+    where: { sku: { equals: sku, mode: "insensitive" }, NOT: { id: material.id } },
+  });
+  if (skuTaken) {
+    redirect("/material-stok?error=" + encodeURIComponent(`SKU ${sku} sudah dipakai material lain`));
+  }
+
+  const previousStock = Number(material.stockQty);
+  const stockDelta = parsed.stockQty - previousStock;
   const data = {
+    sku,
     name: parsed.name,
     category: parsed.category,
     gsm: parsed.gsm ?? null,
@@ -106,17 +128,40 @@ export async function updateMaterialAction(formData: FormData) {
     supplierId: parsed.supplierId ?? null,
     pricePerUnit: parsed.pricePerUnit,
     unit: parsed.unit,
+    stockQty: parsed.stockQty,
+    reservedQty: parsed.reservedQty,
     minStockQty: parsed.minStockQty,
   };
 
-  await prisma.material.update({ where: { id: material.id }, data });
+  await prisma.$transaction(async (tx) => {
+    await tx.material.update({ where: { id: material.id }, data });
+    if (Math.abs(stockDelta) > 0.0005) {
+      await tx.stockMovement.create({
+        data: {
+          materialId: material.id,
+          quantity: stockDelta,
+          type: "ADJUSTMENT",
+          note: `Koreksi stok dari edit material (${previousStock} → ${parsed.stockQty})`,
+          source: "WEB",
+          userId: session.userId,
+        },
+      });
+    }
+    if (sku.toUpperCase() !== material.sku.toUpperCase()) {
+      await tx.auditTrail.updateMany({
+        where: { module: "material", referenceCode: { equals: material.sku, mode: "insensitive" } },
+        data: { referenceCode: sku },
+      });
+    }
+  });
 
   await logAudit({
     userId: session.userId,
     module: "material",
     action: "UPDATE",
-    referenceCode: material.sku,
+    referenceCode: sku,
     oldValue: {
+      sku: material.sku,
       name: material.name,
       category: material.category,
       gsm: material.gsm,
@@ -124,6 +169,8 @@ export async function updateMaterialAction(formData: FormData) {
       supplierId: material.supplierId,
       pricePerUnit: Number(material.pricePerUnit),
       unit: material.unit,
+      stockQty: previousStock,
+      reservedQty: Number(material.reservedQty),
       minStockQty: Number(material.minStockQty),
     },
     newValue: data,
