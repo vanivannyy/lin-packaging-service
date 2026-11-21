@@ -8,6 +8,8 @@ import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
 import { recordDeliveryOut } from "@/lib/client-stock";
+import { ensureInvoiceForSalesOrder } from "@/lib/invoice";
+import { logger } from "@/lib/logger";
 
 const DRAGGABLE_STAGES: DeliveryStage[] = ["READY", "IN_DELIVERY", "PENDING", "DELIVERED"];
 
@@ -27,21 +29,31 @@ export async function moveDeliveryStageAction(deliveryId: string, toStage: Deliv
     return;
   }
 
-  await prisma.deliveryOrder.update({
-    where: { id: deliveryId },
-    data: {
-      stage: toStage,
-      note: toStage === "PENDING" ? (note?.trim() || delivery.note) : delivery.note,
-      deliveredAt: toStage === "DELIVERED" ? new Date() : null,
-    },
+  // DO + SO + Invoice (saat DELIVERED) atomik; sinkron stok klien menyusul (sekunder, try/catch).
+  await prisma.$transaction(async (tx) => {
+    await tx.deliveryOrder.update({
+      where: { id: deliveryId },
+      data: {
+        stage: toStage,
+        note: toStage === "PENDING" ? (note?.trim() || delivery.note) : delivery.note,
+        deliveredAt: toStage === "DELIVERED" ? new Date() : null,
+      },
+    });
+    if (toStage === "DELIVERED") {
+      await tx.salesOrder.update({
+        where: { id: delivery.salesOrderId },
+        data: { status: "DELIVERED", deliveredAt: delivery.salesOrder.deliveredAt ?? new Date() },
+      });
+      await ensureInvoiceForSalesOrder(delivery.salesOrderId, tx);
+    }
   });
 
   if (toStage === "DELIVERED") {
-    await prisma.salesOrder.update({ where: { id: delivery.salesOrderId }, data: { status: "DELIVERED" } });
+    revalidatePath("/invoice");
     try {
       await recordDeliveryOut(delivery.salesOrderId, delivery.code);
     } catch (error) {
-      console.error("Gagal sinkron stok klien (delivery out):", error);
+      logger.error("Gagal sinkron stok klien (delivery out)", error, { deliveryId });
     }
   }
 

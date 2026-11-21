@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { recordProductionIn } from "@/lib/client-stock";
+import { logger } from "@/lib/logger";
 
 // Dipanggil saat Work Order selesai packing (papan produksi) - otomatis siapkan
 // Sales Order untuk pengiriman & buat kartu di papan Delivery (stage READY).
@@ -24,7 +25,7 @@ export async function ensureDeliveryOrderForSalesOrder(salesOrderId: string) {
   try {
     await recordProductionIn(salesOrderId, deliveryOrder.code);
   } catch (error) {
-    console.error("Gagal sinkron stok klien (production in):", error);
+    logger.error("Gagal sinkron stok klien (production in)", error, { salesOrderId });
   }
 
   return deliveryOrder;

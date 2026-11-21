@@ -7,6 +7,9 @@ import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
+import { canApprovePurchaseRequest } from "@/lib/roles";
+import { autoCreatePurchaseRequestsForAllLowStock } from "@/lib/purchase-auto";
+import { formId } from "@/lib/form";
 
 const prSchema = z.object({
   materialId: z.string().min(1, "Material wajib dipilih"),
@@ -28,6 +31,8 @@ export async function createPurchaseRequestAction(formData: FormData) {
     note: formData.get("note") || undefined,
   });
 
+  // PR buatan GM/OWNER tidak perlu approval: langsung APPROVED (approver = pembuat).
+  const autoApproved = canApprovePurchaseRequest(session.role);
   const prCode = await generateCode("purchaseRequest");
   const pr = await prisma.purchaseRequest.create({
     data: {
@@ -35,29 +40,42 @@ export async function createPurchaseRequestAction(formData: FormData) {
       neededDate: parsed.neededDate ? new Date(parsed.neededDate) : undefined,
       code: prCode,
       requestedById: session.userId,
-      status: "PENDING",
+      status: autoApproved ? "APPROVED" : "PENDING",
+      approvedById: autoApproved ? session.userId : undefined,
     },
   });
 
-  await logAudit({ userId: session.userId, module: "purchasing", action: "CREATE", referenceCode: pr.code, newValue: parsed });
+  await logAudit({
+    userId: session.userId,
+    module: "purchasing",
+    action: "CREATE",
+    referenceCode: pr.code,
+    newValue: { ...parsed, status: pr.status, autoApproved },
+  });
   await notifyStatusChange({
     excludeUserId: session.userId,
     moduleKeys: ["purchase-request"],
     module: "purchase-request",
-    type: "APPROVAL",
+    type: autoApproved ? "STATUS" : "APPROVAL",
     href: "/purchase-request",
     referenceCode: pr.code,
-    title: "Purchase Request menunggu approve",
-    message: `${session.name} membuat ${pr.code}. Silakan approve atau reject.`,
+    title: autoApproved ? "Purchase Request disetujui" : "Purchase Request menunggu approve",
+    message: autoApproved
+      ? `${session.name} membuat dan menyetujui ${pr.code}. Silakan terima barang setelah datang.`
+      : `${session.name} membuat ${pr.code}. Silakan approve atau reject.`,
   });
   revalidatePath("/purchase-request");
 }
 
 export async function approvePurchaseRequestAction(formData: FormData) {
   const session = await requireModule("purchase-request");
-  const purchaseRequestId = formData.get("purchaseRequestId") as string;
+  if (!canApprovePurchaseRequest(session.role)) {
+    throw new Error("Hanya General Manager atau Owner yang bisa menyetujui Purchase Request.");
+  }
+  const purchaseRequestId = formId(formData, "purchaseRequestId");
 
   const pr = await prisma.purchaseRequest.findUniqueOrThrow({ where: { id: purchaseRequestId } });
+  if (pr.status !== "PENDING") return;
   await prisma.purchaseRequest.update({
     where: { id: purchaseRequestId },
     data: { status: "APPROVED", approvedById: session.userId },
@@ -87,9 +105,13 @@ export async function approvePurchaseRequestAction(formData: FormData) {
 
 export async function rejectPurchaseRequestAction(formData: FormData) {
   const session = await requireModule("purchase-request");
-  const purchaseRequestId = formData.get("purchaseRequestId") as string;
+  if (!canApprovePurchaseRequest(session.role)) {
+    throw new Error("Hanya General Manager atau Owner yang bisa menolak Purchase Request.");
+  }
+  const purchaseRequestId = formId(formData, "purchaseRequestId");
 
   const pr = await prisma.purchaseRequest.findUniqueOrThrow({ where: { id: purchaseRequestId } });
+  if (pr.status !== "PENDING") return;
   await prisma.purchaseRequest.update({
     where: { id: purchaseRequestId },
     data: { status: "REJECTED", approvedById: session.userId },
@@ -119,7 +141,7 @@ export async function rejectPurchaseRequestAction(formData: FormData) {
 
 export async function receivePurchaseRequestAction(formData: FormData) {
   const session = await requireModule("purchase-request");
-  const purchaseRequestId = formData.get("purchaseRequestId") as string;
+  const purchaseRequestId = formId(formData, "purchaseRequestId");
 
   const pr = await prisma.purchaseRequest.findUniqueOrThrow({ where: { id: purchaseRequestId } });
   if (pr.status !== "APPROVED") return;
@@ -164,4 +186,12 @@ export async function receivePurchaseRequestAction(formData: FormData) {
   });
   revalidatePath("/purchase-request");
   revalidatePath("/material-stok", "layout");
+}
+
+// Pindai material yang stoknya sudah di bawah minimum dan buat PR otomatis bila belum ada.
+// Dijalankan manual (tombol), bukan saat render halaman.
+export async function scanLowStockAction() {
+  await requireModule("purchase-request");
+  await autoCreatePurchaseRequestsForAllLowStock();
+  revalidatePath("/purchase-request");
 }

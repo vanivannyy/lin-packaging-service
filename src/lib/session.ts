@@ -1,13 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { UserRole } from "@prisma/client";
+import { getSessionSecret } from "@/lib/secrets";
 
 const SESSION_COOKIE = "lpc_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 8; // 8 jam
 
 function getSecretKey() {
-  const secret = process.env.SESSION_SECRET ?? "dev-only-insecure-secret";
-  return new TextEncoder().encode(secret);
+  return getSessionSecret();
 }
 
 export type SessionPayload = {
@@ -16,6 +16,8 @@ export type SessionPayload = {
   name: string;
   email: string;
   role: UserRole;
+  /** versi token; harus sama dengan User.tokenVersion (default 0 untuk token lama). */
+  tv?: number;
 };
 
 export async function createSession(payload: SessionPayload) {

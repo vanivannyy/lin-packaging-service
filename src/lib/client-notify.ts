@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 type NotifyClientParams = {
   customerId: string;
@@ -29,6 +30,6 @@ export async function notifyClientAccounts(params: NotifyClientParams) {
       })),
     });
   } catch (error) {
-    console.error("Gagal mengirim notifikasi client app:", error);
+    logger.error("Gagal mengirim notifikasi client app", error);
   }
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireMobileSession } from "@/lib/mobile-auth";
-import { canAccessModule } from "@/lib/roles";
+import { canAccessModule, canPerformQc } from "@/lib/roles";
 import { findWorkOrderByCode } from "@/lib/mobile-work-order";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
@@ -19,6 +19,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
 
   if (!canAccessModule(authResult.role, "produksi")) {
     return Response.json({ error: "Akun ini tidak memiliki akses ke modul Produksi" }, { status: 403 });
+  }
+  if (!canPerformQc(authResult.role)) {
+    return Response.json({ error: "Hanya role QC atau Owner yang bisa memutuskan hasil QC" }, { status: 403 });
   }
 
   const { code } = await params;

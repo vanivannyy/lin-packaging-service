@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
 import type { LeadStage } from "@prisma/client";
+import { formEnum, formId } from "@/lib/form";
 
 const createLeadSchema = z.object({
   companyName: z.string().min(2, "Nama perusahaan wajib diisi"),
@@ -36,10 +37,12 @@ export async function createLeadAction(formData: FormData) {
   revalidatePath("/crm");
 }
 
+const LEAD_STAGES = ["NEW", "CONTACTED", "QUALIFIED", "MEETING", "QUOTATION", "NEGOTIATION", "WON", "LOST"] as const satisfies readonly LeadStage[];
+
 export async function advanceLeadStageAction(formData: FormData) {
   const session = await requireModule("crm");
-  const leadId = formData.get("leadId") as string;
-  const toStage = formData.get("toStage") as LeadStage;
+  const leadId = formId(formData, "leadId");
+  const toStage = formEnum(formData, "toStage", LEAD_STAGES);
 
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId } });
   await prisma.lead.update({ where: { id: leadId }, data: { stage: toStage } });
@@ -94,7 +97,7 @@ export async function moveLeadStageAction(leadId: string, toStage: LeadStage) {
 
 export async function markLeadLostAction(formData: FormData) {
   const session = await requireModule("crm");
-  const leadId = formData.get("leadId") as string;
+  const leadId = formId(formData, "leadId");
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId } });
   await prisma.lead.update({ where: { id: leadId }, data: { stage: "LOST" } });
   await logAudit({
@@ -110,7 +113,7 @@ export async function markLeadLostAction(formData: FormData) {
 
 export async function convertLeadToCustomerAction(formData: FormData) {
   const session = await requireModule("crm");
-  const leadId = formData.get("leadId") as string;
+  const leadId = formId(formData, "leadId");
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId } });
 
   const existing = await prisma.customer.findUnique({ where: { leadId } });

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
 import type { PriceMasterCategory } from "@prisma/client";
+import { formId } from "@/lib/form";
 
 const priceSchema = z.object({
   category: z.enum(["PAPER", "FINISHING", "LABOR", "OUTSOURCING", "OVERHEAD"]),
@@ -34,7 +35,7 @@ export async function createPriceMasterAction(formData: FormData) {
 
 export async function updatePriceMasterAction(formData: FormData) {
   const session = await requireModule("price-master");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const parsed = priceSchema.parse({
     category: formData.get("category") as PriceMasterCategory,
     name: formData.get("name"),
@@ -60,7 +61,7 @@ export async function updatePriceMasterAction(formData: FormData) {
 
 export async function toggleActivePriceMasterAction(formData: FormData) {
   const session = await requireModule("price-master");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const item = await prisma.priceMasterItem.findUniqueOrThrow({ where: { id } });
   await prisma.priceMasterItem.update({ where: { id }, data: { isActive: !item.isActive } });
 

@@ -1,4 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
+import { getClientSecret } from "@/lib/secrets";
+import { prisma } from "@/lib/prisma";
 
 const CLIENT_TOKEN_EXPIRY = "30d";
 const CLIENT_AUDIENCE = "client-apps";
@@ -9,13 +11,11 @@ export type ClientSessionPayload = {
   customerName: string;
   name: string;
   email: string;
+  tv?: number;
 };
 
 function getSecretKey() {
-  // Secret dipisah dari SESSION_SECRET staff internal (lihat mobile-auth.ts) supaya
-  // token akun klien & token staff tidak bisa saling dipakai walau nama variabel beda.
-  const secret = process.env.CLIENT_SESSION_SECRET ?? process.env.SESSION_SECRET ?? "dev-only-insecure-secret";
-  return new TextEncoder().encode(secret);
+  return getClientSecret();
 }
 
 export async function signClientToken(payload: ClientSessionPayload): Promise<string> {
@@ -52,5 +52,16 @@ export async function requireClientSession(
     return Response.json({ error: "Token tidak valid atau sudah kedaluwarsa" }, { status: 401 });
   }
 
-  return session;
+  // Validasi akun klien ke DB (token 30 hari): akun nonaktif/dihapus langsung kehilangan akses.
+  const account = await prisma.clientAccount.findUnique({
+    where: { id: session.clientAccountId },
+    select: { isActive: true, isDeleted: true, customerId: true, tokenVersion: true },
+  });
+  if (!account || account.isDeleted || !account.isActive) {
+    return Response.json({ error: "Akun tidak aktif" }, { status: 401 });
+  }
+  if ((session.tv ?? 0) !== account.tokenVersion) {
+    return Response.json({ error: "Sesi telah dicabut, silakan login ulang" }, { status: 401 });
+  }
+  return { ...session, customerId: account.customerId };
 }

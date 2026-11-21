@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
+import { formId } from "@/lib/form";
 
 const categorySchema = z.object({
   name: z.string().min(2, "Nama kategori minimal 2 karakter"),
@@ -30,7 +31,7 @@ export async function createProductCategoryAction(formData: FormData) {
 
 export async function updateProductCategoryAction(formData: FormData) {
   const session = await requireModule("produk-kategori");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const parsed = categorySchema.parse({ name: formData.get("name") });
 
   const category = await prisma.productCategory.update({ where: { id }, data: parsed });
@@ -47,7 +48,7 @@ export async function updateProductCategoryAction(formData: FormData) {
 
 export async function deleteProductCategoryAction(formData: FormData) {
   const session = await requireModule("produk-kategori");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const category = await prisma.productCategory.update({ where: { id }, data: { isDeleted: true } });
 
   await logAudit({

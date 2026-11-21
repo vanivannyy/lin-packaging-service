@@ -11,7 +11,6 @@ import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { MaterialForm } from "./MaterialForm";
 import { createMaterialAction, adjustStockAction, deleteMaterialAction, updateMaterialAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
-import { autoCreatePurchaseRequestsForAllLowStock } from "@/lib/purchase-auto";
 
 export default async function MaterialStokPage({
   searchParams,
@@ -21,7 +20,6 @@ export default async function MaterialStokPage({
   const session = await requireModule("material-stok");
   const { error, ok } = await searchParams;
   const canManage = session.role === "OWNER";
-  await autoCreatePurchaseRequestsForAllLowStock();
   const [materials, suppliers] = await Promise.all([
     prisma.material.findMany({ where: { isDeleted: false }, include: { supplier: true }, orderBy: { name: "asc" } }),
     prisma.supplier.findMany({ where: { isDeleted: false }, orderBy: { name: "asc" } }),

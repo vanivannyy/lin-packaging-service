@@ -1,5 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import type { UserRole } from "@prisma/client";
+import { getSessionSecret } from "@/lib/secrets";
+import { prisma } from "@/lib/prisma";
 
 const MOBILE_TOKEN_EXPIRY = "30d";
 const MOBILE_AUDIENCE = "mobile-scanner";
@@ -10,11 +12,11 @@ export type MobileSessionPayload = {
   name: string;
   email: string;
   role: UserRole;
+  tv?: number;
 };
 
 function getSecretKey() {
-  const secret = process.env.SESSION_SECRET ?? "dev-only-insecure-secret";
-  return new TextEncoder().encode(secret);
+  return getSessionSecret();
 }
 
 export async function signMobileToken(payload: MobileSessionPayload): Promise<string> {
@@ -51,5 +53,17 @@ export async function requireMobileSession(
     return Response.json({ error: "Token tidak valid atau sudah kedaluwarsa" }, { status: 401 });
   }
 
-  return session;
+  // Token berumur 30 hari: validasi ke DB agar user yang dinonaktifkan/dihapus langsung kehilangan akses,
+  // dan role yang berubah memakai role terbaru (bukan role saat login).
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { isActive: true, isDeleted: true, role: true, tokenVersion: true },
+  });
+  if (!user || user.isDeleted || !user.isActive) {
+    return Response.json({ error: "Akun tidak aktif" }, { status: 401 });
+  }
+  if ((session.tv ?? 0) !== user.tokenVersion) {
+    return Response.json({ error: "Sesi telah dicabut, silakan login ulang" }, { status: 401 });
+  }
+  return { ...session, role: user.role };
 }

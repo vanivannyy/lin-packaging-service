@@ -7,6 +7,7 @@ import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
 import type { CustomerTerm } from "@prisma/client";
+import { formId } from "@/lib/form";
 
 const customerSchema = z.object({
   name: z.string().min(2, "Nama perusahaan wajib diisi"),
@@ -54,7 +55,7 @@ export async function createCustomerAction(formData: FormData) {
 
 export async function updateCustomerAction(formData: FormData) {
   const session = await requireModule("customer");
-  const customerId = formData.get("customerId") as string;
+  const customerId = formId(formData, "customerId");
   const parsed = customerSchema.parse({
     name: formData.get("name"),
     industry: formData.get("industry") || undefined,
@@ -86,7 +87,7 @@ export async function updateCustomerAction(formData: FormData) {
 
 export async function toggleCustomerActiveAction(formData: FormData) {
   const session = await requireModule("customer");
-  const customerId = formData.get("customerId") as string;
+  const customerId = formId(formData, "customerId");
   const customer = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
   const updated = await prisma.customer.update({
     where: { id: customerId },

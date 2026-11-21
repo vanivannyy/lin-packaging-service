@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     name: user.name,
     email: user.email,
     role: user.role,
+    tv: user.tokenVersion,
   });
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });

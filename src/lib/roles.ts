@@ -80,6 +80,20 @@ export const ROLE_MODULES: Record<UserRole, string[]> = {
   DESIGN: [...PLANNER_MODULES, "design-master"],
 };
 
+// Keputusan QC (lulus/reject, checklist inspeksi) hanya untuk role ini (OWNER, GM, QC).
+export const QC_ROLES: UserRole[] = ["OWNER", "GENERAL_MANAGER", "QC"];
+
+export function canPerformQc(role: UserRole): boolean {
+  return QC_ROLES.includes(role);
+}
+
+// Approve/reject Purchase Request hanya GM & OWNER; PR buatan mereka langsung APPROVED (tanpa approval).
+export const PR_APPROVER_ROLES: UserRole[] = ["OWNER", "GENERAL_MANAGER"];
+
+export function canApprovePurchaseRequest(role: UserRole): boolean {
+  return PR_APPROVER_ROLES.includes(role);
+}
+
 const API_MODULE_PREFIXES: Array<[string, string]> = [
   ["/api/export/sales-order", "sales-order"],
   ["/api/export/quotation", "quotation"],

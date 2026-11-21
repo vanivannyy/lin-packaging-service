@@ -7,7 +7,7 @@ import { Field, Input, Select, SubmitButton } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { ROLE_LABEL, USER_ROLES } from "@/lib/roles";
-import { createUserAction, toggleUserActiveAction, updateUserAction } from "./actions";
+import { createUserAction, revokeUserSessionsAction, toggleUserActiveAction, updateUserAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 
 export default async function UserRolePage({
@@ -151,6 +151,15 @@ export default async function UserRolePage({
                           <SubmitButton>Simpan Perubahan</SubmitButton>
                         </form>
                       </Modal>
+                      <form action={revokeUserSessionsAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <button
+                          title="Cabut semua sesi web & mobile user ini"
+                          className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                        >
+                          Cabut Sesi
+                        </button>
+                      </form>
                       <form action={toggleUserActiveAction}>
                         <input type="hidden" name="userId" value={u.id} />
                         <button className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">

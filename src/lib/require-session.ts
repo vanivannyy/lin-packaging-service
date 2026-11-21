@@ -15,9 +15,9 @@ export async function requireSession(): Promise<SessionPayload> {
   // user sudah tidak ada/nonaktif, paksa re-login.
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { isActive: true, isDeleted: true },
+    select: { isActive: true, isDeleted: true, role: true, tokenVersion: true },
   });
-  if (!user || user.isDeleted || !user.isActive) {
+  if (!user || user.isDeleted || !user.isActive || (session.tv ?? 0) !== user.tokenVersion) {
     // requireSession() dipanggil dari Server Component (page.tsx) maupun Server
     // Action/Route Handler. Cookie hanya boleh dihapus dari 2 konteks terakhir,
     // jadi bungkus try/catch agar tetap aman dipanggil saat render halaman -
@@ -30,7 +30,8 @@ export async function requireSession(): Promise<SessionPayload> {
     redirect("/login");
   }
 
-  return session;
+  // Pakai role terbaru dari DB (bukan role di JWT yang bisa basi sampai 8 jam).
+  return { ...session, role: user.role };
 }
 
 export async function requireModule(moduleKey: string): Promise<SessionPayload> {

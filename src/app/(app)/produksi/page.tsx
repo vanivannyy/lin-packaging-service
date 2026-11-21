@@ -5,9 +5,10 @@ import { StatCard } from "@/components/ui/StatCard";
 import { formatPercent } from "@/lib/format";
 import { ProduksiKanbanBoard } from "./KanbanBoard";
 import { requireModule } from "@/lib/require-session";
+import { canPerformQc } from "@/lib/roles";
 
 export default async function ProduksiPage() {
-  await requireModule("produksi");
+  const session = await requireModule("produksi");
   const [workOrders, total, inProduction, done, late, rejectAgg] = await Promise.all([
     prisma.workOrder.findMany({
       where: { isDeleted: false },
@@ -107,7 +108,7 @@ export default async function ProduksiPage() {
 
       <p className="mb-3 -mt-2 text-xs text-gray-400">Geser (drag) kartu work order antar kolom untuk memindahkan stage.</p>
 
-      <ProduksiKanbanBoard workOrders={cards} />
+      <ProduksiKanbanBoard workOrders={cards} canQc={canPerformQc(session.role)} />
     </div>
   );
 }

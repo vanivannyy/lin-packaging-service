@@ -41,6 +41,8 @@ export async function ensureClientItemForSalesOrder(salesOrderId: string) {
   });
 }
 
+type Db = Pick<typeof prisma, "clientFinishedGoodsItem" | "clientStockMovement">;
+
 async function createMovement(params: {
   itemId: string;
   side: ClientStockSide;
@@ -51,8 +53,9 @@ async function createMovement(params: {
   referenceCode?: string | null;
   actorUserId?: string | null;
   actorClientAccountId?: string | null;
+  db?: Db;
 }) {
-  await prisma.clientStockMovement.create({
+  await (params.db ?? prisma).clientStockMovement.create({
     data: {
       itemId: params.itemId,
       side: params.side,
@@ -67,25 +70,39 @@ async function createMovement(params: {
   });
 }
 
+/**
+ * Qty barang jadi yang dihitung ke stok klien: qty GOOD hasil produksi (WorkOrder.goodQtyTotal).
+ * Fallback ke qty Sales Order bila belum ada log produksi (goodQtyTotal = 0) agar stok tidak nol
+ * pada WO lama / operator yang tidak mengisi log.
+ */
+async function resolveFinishedQty(salesOrderId: string, orderQty: number): Promise<number> {
+  const wo = await prisma.workOrder.findUnique({ where: { salesOrderId }, select: { goodQtyTotal: true } });
+  return wo && wo.goodQtyTotal > 0 ? wo.goodQtyTotal : orderQty;
+}
+
 /** Otomatis: dipanggil saat Work Order klien selesai produksi (stage -> DONE). */
 export async function recordProductionIn(salesOrderId: string, referenceCode?: string) {
   const salesOrder = await prisma.salesOrder.findUniqueOrThrow({ where: { id: salesOrderId } });
   const item = await ensureClientItemForSalesOrder(salesOrderId);
-  const qty = salesOrder.qty;
+  const qty = await resolveFinishedQty(salesOrderId, salesOrder.qty);
 
-  const updated = await prisma.clientFinishedGoodsItem.update({
-    where: { id: item.id },
-    data: { linWarehouseQty: { increment: qty } },
-  });
-
-  await createMovement({
-    itemId: item.id,
-    side: "LIN_WAREHOUSE",
-    type: "PRODUCTION_IN",
-    quantity: qty,
-    resultingQty: toNum(updated.linWarehouseQty),
-    note: "Produksi selesai, barang masuk gudang Lin Packaging",
-    referenceCode,
+  // Update stok + catat movement atomik.
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.clientFinishedGoodsItem.update({
+      where: { id: item.id },
+      data: { linWarehouseQty: { increment: qty } },
+    });
+    await createMovement({
+      itemId: item.id,
+      side: "LIN_WAREHOUSE",
+      type: "PRODUCTION_IN",
+      quantity: qty,
+      resultingQty: toNum(row.linWarehouseQty),
+      note: "Produksi selesai, barang masuk gudang Lin Packaging",
+      referenceCode,
+      db: tx,
+    });
+    return row;
   });
 
   await notifyClientAccounts({
@@ -104,21 +121,33 @@ export async function recordProductionIn(salesOrderId: string, referenceCode?: s
 export async function recordDeliveryOut(salesOrderId: string, referenceCode?: string) {
   const salesOrder = await prisma.salesOrder.findUniqueOrThrow({ where: { id: salesOrderId } });
   const item = await ensureClientItemForSalesOrder(salesOrderId);
-  const qty = salesOrder.qty;
+  const qty = await resolveFinishedQty(salesOrderId, salesOrder.qty);
 
-  const updated = await prisma.clientFinishedGoodsItem.update({
-    where: { id: item.id },
-    data: { linWarehouseQty: { decrement: qty } },
-  });
-
-  await createMovement({
-    itemId: item.id,
-    side: "LIN_WAREHOUSE",
-    type: "DELIVERY_OUT",
-    quantity: -qty,
-    resultingQty: toNum(updated.linWarehouseQty),
-    note: "Pengiriman sampai tujuan, barang keluar dari gudang Lin Packaging",
-    referenceCode,
+  // Update stok + movement atomik; stok gudang tidak boleh negatif (dikurangi maksimal sebesar stok yang ada).
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: item.id } });
+    const outQty = Math.min(qty, Math.max(0, toNum(current.linWarehouseQty)));
+    const row =
+      outQty > 0
+        ? await tx.clientFinishedGoodsItem.update({
+            where: { id: item.id },
+            data: { linWarehouseQty: { decrement: outQty } },
+          })
+        : current;
+    await createMovement({
+      itemId: item.id,
+      side: "LIN_WAREHOUSE",
+      type: "DELIVERY_OUT",
+      quantity: -outQty,
+      resultingQty: toNum(row.linWarehouseQty),
+      note:
+        outQty < qty
+          ? `Pengiriman sampai tujuan (dikurangi ${outQty} dari ${qty}; stok gudang tidak mencukupi)`
+          : "Pengiriman sampai tujuan, barang keluar dari gudang Lin Packaging",
+      referenceCode,
+      db: tx,
+    });
+    return row;
   });
 
   await notifyClientAccounts({
@@ -140,22 +169,25 @@ export async function adminAdjustLinStock(params: {
   note?: string;
   userId: string;
 }) {
-  const item = await prisma.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
-  const delta = params.newQty - toNum(item.linWarehouseQty);
-
-  const updated = await prisma.clientFinishedGoodsItem.update({
-    where: { id: params.itemId },
-    data: { linWarehouseQty: params.newQty },
-  });
-
-  await createMovement({
-    itemId: item.id,
-    side: "LIN_WAREHOUSE",
-    type: "ADMIN_ADJUSTMENT",
-    quantity: delta,
-    resultingQty: params.newQty,
-    note: params.note ?? "Koreksi stok manual oleh admin",
-    actorUserId: params.userId,
+  if (params.newQty < 0) throw new Error("Stok tidak boleh negatif.");
+  const { item, updated } = await prisma.$transaction(async (tx) => {
+    const item = await tx.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
+    const delta = params.newQty - toNum(item.linWarehouseQty);
+    const updated = await tx.clientFinishedGoodsItem.update({
+      where: { id: params.itemId },
+      data: { linWarehouseQty: params.newQty },
+    });
+    await createMovement({
+      itemId: item.id,
+      side: "LIN_WAREHOUSE",
+      type: "ADMIN_ADJUSTMENT",
+      quantity: delta,
+      resultingQty: params.newQty,
+      note: params.note ?? "Koreksi stok manual oleh admin",
+      actorUserId: params.userId,
+      db: tx,
+    });
+    return { item, updated };
   });
 
   await notifyClientAccounts({
@@ -175,22 +207,25 @@ export async function adminAdjustClientStock(params: {
   note?: string;
   userId: string;
 }) {
-  const item = await prisma.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
-  const delta = params.newQty - toNum(item.clientWarehouseQty);
-
-  const updated = await prisma.clientFinishedGoodsItem.update({
-    where: { id: params.itemId },
-    data: { clientWarehouseQty: params.newQty, clientReportedAt: new Date() },
-  });
-
-  await createMovement({
-    itemId: item.id,
-    side: "CLIENT_WAREHOUSE",
-    type: "ADMIN_ADJUSTMENT",
-    quantity: delta,
-    resultingQty: params.newQty,
-    note: params.note ?? "Koreksi stok manual oleh admin",
-    actorUserId: params.userId,
+  if (params.newQty < 0) throw new Error("Stok tidak boleh negatif.");
+  const updated = await prisma.$transaction(async (tx) => {
+    const item = await tx.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
+    const delta = params.newQty - toNum(item.clientWarehouseQty);
+    const row = await tx.clientFinishedGoodsItem.update({
+      where: { id: params.itemId },
+      data: { clientWarehouseQty: params.newQty, clientReportedAt: new Date() },
+    });
+    await createMovement({
+      itemId: item.id,
+      side: "CLIENT_WAREHOUSE",
+      type: "ADMIN_ADJUSTMENT",
+      quantity: delta,
+      resultingQty: params.newQty,
+      note: params.note ?? "Koreksi stok manual oleh admin",
+      actorUserId: params.userId,
+      db: tx,
+    });
+    return row;
   });
 
   await notifyIfClientStockLow(updated.id);
@@ -205,22 +240,25 @@ export async function clientReportStock(params: {
   note?: string;
   clientAccountId: string;
 }) {
-  const item = await prisma.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
-  const delta = params.newQty - toNum(item.clientWarehouseQty);
-
-  const updated = await prisma.clientFinishedGoodsItem.update({
-    where: { id: params.itemId },
-    data: { clientWarehouseQty: params.newQty, clientReportedAt: new Date() },
-  });
-
-  await createMovement({
-    itemId: item.id,
-    side: "CLIENT_WAREHOUSE",
-    type: "CLIENT_REPORT",
-    quantity: delta,
-    resultingQty: params.newQty,
-    note: params.note ?? "Dilaporkan klien lewat app mobile",
-    actorClientAccountId: params.clientAccountId,
+  if (params.newQty < 0) throw new Error("Stok tidak boleh negatif.");
+  const updated = await prisma.$transaction(async (tx) => {
+    const item = await tx.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: params.itemId } });
+    const delta = params.newQty - toNum(item.clientWarehouseQty);
+    const row = await tx.clientFinishedGoodsItem.update({
+      where: { id: params.itemId },
+      data: { clientWarehouseQty: params.newQty, clientReportedAt: new Date() },
+    });
+    await createMovement({
+      itemId: item.id,
+      side: "CLIENT_WAREHOUSE",
+      type: "CLIENT_REPORT",
+      quantity: delta,
+      resultingQty: params.newQty,
+      note: params.note ?? "Dilaporkan klien lewat app mobile",
+      actorClientAccountId: params.clientAccountId,
+      db: tx,
+    });
+    return row;
   });
 
   await notifyIfClientStockLow(updated.id);

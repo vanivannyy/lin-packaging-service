@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Field, Input, Select, SubmitButton } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatRupiah, formatRupiahCompact, formatDate, daysBetween } from "@/lib/format";
-import { recordPaymentAction } from "./actions";
+import { recordPaymentAction, updateInvoiceDueDateAction } from "./actions";
 import { requireModule } from "@/lib/require-session";
 
 function effectiveStatus(status: string, dueDate: Date | null, paidAmount: number, totalAmount: number) {
@@ -192,6 +192,29 @@ export default async function InvoicePage() {
                         >
                           <FileText size={11} /> PDF
                         </a>
+                        {remaining > 0 ? (
+                          <Modal
+                            title={`Ubah Jatuh Tempo - ${inv.code}`}
+                            trigger={
+                              <button className="rounded-md border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50">
+                                Jatuh Tempo
+                              </button>
+                            }
+                          >
+                            <form action={updateInvoiceDueDateAction} className="space-y-3">
+                              <input type="hidden" name="invoiceId" value={inv.id} />
+                              <Field label={`Jatuh tempo (default sesuai term customer: ${inv.customer.term.replace("_", " ")})`}>
+                                <Input
+                                  name="dueDate"
+                                  type="date"
+                                  required
+                                  defaultValue={inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : ""}
+                                />
+                              </Field>
+                              <SubmitButton>Simpan Jatuh Tempo</SubmitButton>
+                            </form>
+                          </Modal>
+                        ) : null}
                         {remaining > 0 ? (
                           <Modal
                             title={`Catat Pembayaran - ${inv.code}`}

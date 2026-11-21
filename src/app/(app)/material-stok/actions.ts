@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { formId } from "@/lib/form";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
@@ -97,7 +98,7 @@ export async function updateMaterialAction(formData: FormData) {
     redirect("/material-stok?error=" + encodeURIComponent("Hanya Owner yang bisa mengubah material"));
   }
 
-  const id = String(formData.get("materialId") ?? "");
+  const id = formId(formData, "materialId");
   const parsed = materialEditSchema.parse({
     ...parseMaterialForm(formData),
     sku: formData.get("sku"),
@@ -188,7 +189,7 @@ export async function deleteMaterialAction(formData: FormData) {
     redirect("/material-stok?error=" + encodeURIComponent("Hanya Owner yang bisa menghapus material"));
   }
 
-  const id = String(formData.get("materialId") ?? "");
+  const id = formId(formData, "materialId");
   const material = await prisma.material.findFirst({ where: { id, isDeleted: false } });
   if (!material) {
     redirect("/material-stok?error=" + encodeURIComponent("Material tidak ditemukan"));

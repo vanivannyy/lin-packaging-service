@@ -29,6 +29,11 @@ type QuotationOption = {
 
 type CustomerOption = { id: string; name: string; quotations: QuotationOption[] };
 
+type MaterialOption = { id: string; name: string; sku: string; category: string; unit: string; available: number };
+
+type BomLine = { key: number; materialId: string; qty: string };
+let bomCounter = 0;
+
 type PriceMasterOption = { id: string; category: string; name: string; unit: string; price: number };
 
 interface FormState {
@@ -116,10 +121,13 @@ let lainCounter = 0;
 export function HppCalculatorForm({
   customers,
   priceMasterItems,
+  materials,
 }: {
   customers: CustomerOption[];
   priceMasterItems: PriceMasterOption[];
+  materials: MaterialOption[];
 }) {
+  const [bomLines, setBomLines] = useState<BomLine[]>([]);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [biayaLain, setBiayaLain] = useState<(BiayaLainItem & { id: number })[]>([]);
   const [result, setResult] = useState<HppCalculatorResult | null>(null);
@@ -156,6 +164,14 @@ export function HppCalculatorForm({
     setProductName(q.productName);
     setMargin(q.marginPercent);
     const spec = q.materialSpec ?? {};
+    const specBom = Array.isArray(spec.bom)
+      ? (spec.bom as { materialId?: unknown; qty?: unknown }[])
+          .filter((b) => typeof b.materialId === "string")
+          .map((b) => ({ key: ++bomCounter, materialId: String(b.materialId), qty: String(b.qty ?? "") }))
+      : typeof spec.materialId === "string"
+        ? [{ key: ++bomCounter, materialId: spec.materialId, qty: String(spec.jumlahPlano ?? "") }]
+        : [];
+    setBomLines(specBom);
     setForm((prev) => ({
       ...prev,
       jumlahOrder: q.qty,
@@ -706,6 +722,9 @@ export function HppCalculatorForm({
                 type="hidden"
                 name="materialSpec"
                 value={JSON.stringify({
+                  bom: bomLines
+                    .filter((l) => l.materialId && Number(l.qty) > 0)
+                    .map((l) => ({ materialId: l.materialId, qty: Number(l.qty) })),
                   gsm: form.gsm,
                   panjangPlano: form.panjangPlano,
                   lebarPlano: form.lebarPlano,
@@ -738,6 +757,70 @@ export function HppCalculatorForm({
                   required
                 />
               </Field>
+              <div className="sm:col-span-3">
+                <p className="mb-1 text-xs font-semibold text-gray-600">
+                  Kebutuhan material (BOM) — direservasi saat jadi Sales Order
+                </p>
+                <div className="space-y-2">
+                  {bomLines.map((line) => {
+                    const mat = materials.find((m) => m.id === line.materialId);
+                    return (
+                      <div key={line.key} className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={line.materialId}
+                          onChange={(e) => {
+                            const picked = materials.find((m) => m.id === e.target.value);
+                            setBomLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key
+                                  ? { ...l, materialId: e.target.value, qty: l.qty || suggestBomQty(picked, result) }
+                                  : l,
+                              ),
+                            );
+                          }}
+                        >
+                          <option value="">Pilih material</option>
+                          {materials.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({m.sku}, {m.category}) — tersedia {m.available} {m.unit}
+                            </option>
+                          ))}
+                        </Select>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={line.qty}
+                          onChange={(e) =>
+                            setBomLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, qty: e.target.value } : l)))
+                          }
+                          placeholder="Qty"
+                          className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500"
+                        />
+                        <span className="text-xs text-gray-400">{mat?.unit ?? ""}</span>
+                        <button
+                          type="button"
+                          onClick={() => setBomLines((prev) => prev.filter((l) => l.key !== line.key))}
+                          className="text-xs font-semibold text-red-500 hover:underline"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBomLines((prev) => [...prev, { key: ++bomCounter, materialId: "", qty: "" }])}
+                  className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  + Tambah material
+                </button>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Saran qty otomatis: kertas = {result.planoProduksi} plano, tinta = estimasi kg dari kalkulator (offset).
+                  Laminating/foil/lainnya isi manual sesuai satuan material.
+                </p>
+              </div>
               <Field label="Margin (%)">
                 <NumberInput
                   name="marginPercent"
@@ -759,6 +842,15 @@ export function HppCalculatorForm({
       ) : null}
     </div>
   );
+}
+
+function suggestBomQty(material: MaterialOption | undefined, result: HppCalculatorResult): string {
+  if (!material) return "";
+  if (material.category === "PAPER") return String(result.planoProduksi);
+  if (material.category === "INK" && result.metodeCetak === "offset" && result.tinta.konsumsiTintaKg > 0) {
+    return String(Math.ceil(result.tinta.konsumsiTintaKg * 1000) / 1000);
+  }
+  return "";
 }
 
 function SectionCard({ title, children, }: { title: string; children: React.ReactNode }) {

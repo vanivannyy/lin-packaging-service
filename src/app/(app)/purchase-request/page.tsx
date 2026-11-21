@@ -12,13 +12,14 @@ import {
   approvePurchaseRequestAction,
   rejectPurchaseRequestAction,
   receivePurchaseRequestAction,
+  scanLowStockAction,
 } from "./actions";
 import { requireModule } from "@/lib/require-session";
-import { autoCreatePurchaseRequestsForAllLowStock } from "@/lib/purchase-auto";
+import { canApprovePurchaseRequest } from "@/lib/roles";
 
 export default async function PurchaseRequestPage() {
-  await requireModule("purchase-request");
-  await autoCreatePurchaseRequestsForAllLowStock();
+  const session = await requireModule("purchase-request");
+  const canApprove = canApprovePurchaseRequest(session.role);
   const [purchaseRequests, materials, suppliers, stats] = await Promise.all([
     prisma.purchaseRequest.findMany({
       where: { isDeleted: false },
@@ -95,6 +96,15 @@ export default async function PurchaseRequestPage() {
         }
       />
 
+      <form action={scanLowStockAction} className="mb-3 flex items-center gap-2">
+        <button className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+          Cek stok minimum
+        </button>
+        <span className="text-[11px] text-gray-400">
+          Buat PR otomatis untuk material yang stok tersedianya sudah di bawah minimum.
+        </span>
+      </form>
+
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Total PR" value={total} />
         <StatCard label="Menunggu Approval" value={pending} valueColor="amber" />
@@ -148,7 +158,7 @@ export default async function PurchaseRequestPage() {
                   </Td>
                   <Td>
                     <div className="flex items-center gap-1.5">
-                      {pr.status === "PENDING" ? (
+                      {pr.status === "PENDING" && canApprove ? (
                         <>
                           <form action={approvePurchaseRequestAction}>
                             <input type="hidden" name="purchaseRequestId" value={pr.id} />
@@ -171,6 +181,9 @@ export default async function PurchaseRequestPage() {
                             Terima Barang
                           </button>
                         </form>
+                      ) : null}
+                      {pr.status === "PENDING" && !canApprove ? (
+                        <span className="text-xs text-gray-400">Menunggu GM/Owner</span>
                       ) : null}
                       {pr.status === "RECEIVED" || pr.status === "REJECTED" ? (
                         <span className="text-xs text-gray-400">-</span>

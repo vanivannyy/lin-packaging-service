@@ -185,6 +185,7 @@ model User {
   isActive     Boolean   @default(true)
   isDeleted    Boolean   @default(false)
   lastLoginAt  DateTime?
+  tokenVersion Int       @default(0) // dinaikkan untuk mencabut semua token/sesi user
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -355,6 +356,7 @@ model Material {
   products         Product[]
   stockMovements   StockMovement[]
   purchaseRequests PurchaseRequest[]
+  salesOrderLines  SalesOrderMaterial[]
 
   @@index([category, isDeleted])
   @@index([name])
@@ -407,7 +409,7 @@ model Quotation {
   code                  String          @unique // QT-2026-00001
   date                  DateTime        @default(now())
   customerId            String?
-  customer              Customer?       @relation(fields: [customerId], references: [id])
+  customer              Customer?       @relation(fields: [customerId], references: [id], onDelete: Restrict)
   productId             String?
   product               Product?        @relation(fields: [productId], references: [id])
   productNote           String? // free-text product name shown in table
@@ -458,9 +460,40 @@ model SalesOrder {
   workOrder     WorkOrder?
   invoice       Invoice?
   deliveryOrder DeliveryOrder?
+  materials     SalesOrderMaterial[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
+}
+
+// ============================================================
+// BOM / RESERVASI MATERIAL PER SALES ORDER (multi-material)
+// ============================================================
+
+// Satu baris kebutuhan material suatu SO. reservedQty = qty yang masih direservasi
+// (0 = belum direservasi / sudah dikonsumsi / sudah dilepas). status menjaga idempotensi.
+model SalesOrderMaterial {
+  id           String                   @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder               @relation(fields: [salesOrderId], references: [id])
+  materialId   String
+  material     Material                 @relation(fields: [materialId], references: [id])
+  qty          Decimal                  @db.Decimal(15, 3)
+  reservedQty  Decimal                  @default(0) @db.Decimal(15, 3)
+  status       SalesOrderMaterialStatus @default(RESERVED)
+  source       String                   @default("HPP") // HPP | MANUAL
+  note         String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([salesOrderId])
+  @@index([materialId, status])
+}
+
+enum SalesOrderMaterialStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
 }
 
 // ============================================================
@@ -659,6 +692,7 @@ model ClientAccount {
   isActive     Boolean   @default(true)
   isDeleted    Boolean   @default(false)
   lastLoginAt  DateTime?
+  tokenVersion Int       @default(0) // dinaikkan untuk mencabut semua token akun klien
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -730,7 +764,7 @@ model ClientStockMovement {
 model ClientNotification {
   id              String        @id @default(cuid())
   clientAccountId String
-  clientAccount   ClientAccount @relation(fields: [clientAccountId], references: [id])
+  clientAccount   ClientAccount @relation(fields: [clientAccountId], references: [id], onDelete: Cascade)
   title           String
   message         String
   href            String?
@@ -841,4 +875,15 @@ model CompanySettings {
   productCategoryPrefix String   @default("CAT")
   designPrefix          String   @default("DSG")
   updatedAt             DateTime @updatedAt
+}
+
+// ============================================================
+// DOCUMENT COUNTER (penomoran dokumen atomik)
+// ============================================================
+
+// key = "<PREFIX>-<YYYY>-" (mis. "SO-2026-"); value = nomor terakhir yang dipakai.
+model DocumentCounter {
+  key       String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }

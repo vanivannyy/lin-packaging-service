@@ -5,9 +5,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
+import { parseBomFromSpec, reserveBomForSalesOrder } from "@/lib/material-reservation";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
-import type { QuotationStatus } from "@prisma/client";
+import { QUOTATION_TRANSITIONS, canTransition, parseQuotationStatus } from "@/lib/status-transitions";
+import { formId } from "@/lib/form";
 
 const quotationSchema = z.object({
   customerId: z.string().min(1, "Customer wajib dipilih"),
@@ -58,8 +60,8 @@ export async function createQuotationAction(formData: FormData) {
 
 export async function updateQuotationStatusAction(formData: FormData) {
   const session = await requireModule("quotation");
-  const quotationId = formData.get("quotationId") as string;
-  const status = formData.get("status") as QuotationStatus;
+  const quotationId = formId(formData, "quotationId");
+  const status = parseQuotationStatus(formData.get("status"));
 
   // Accept/Reject quotation adalah keputusan approval - hanya Owner & General
   // Manager yang boleh melakukannya. Sales hanya bisa kirim (DRAFT -> SENT).
@@ -68,6 +70,10 @@ export async function updateQuotationStatusAction(formData: FormData) {
   }
 
   const quotation = await prisma.quotation.findUniqueOrThrow({ where: { id: quotationId } });
+  if (quotation.isDeleted || quotation.status === status) return;
+  if (!canTransition(QUOTATION_TRANSITIONS, quotation.status, status)) {
+    throw new Error(`Status Quotation tidak bisa diubah dari ${quotation.status} ke ${status}.`);
+  }
   await prisma.quotation.update({ where: { id: quotationId }, data: { status } });
 
   await logAudit({
@@ -123,7 +129,7 @@ export async function updateQuotationStatusAction(formData: FormData) {
 
 export async function convertQuotationToSalesOrderAction(formData: FormData) {
   const session = await requireModule("quotation");
-  const quotationId = formData.get("quotationId") as string;
+  const quotationId = formId(formData, "quotationId");
 
   const quotation = await prisma.quotation.findUniqueOrThrow({ where: { id: quotationId } });
   if (quotation.status !== "ACCEPTED") return;
@@ -139,31 +145,40 @@ export async function convertQuotationToSalesOrderAction(formData: FormData) {
   }
 
   const soCode = await generateCode("salesOrder");
-  const salesOrder = await prisma.salesOrder.create({
-    data: {
-      code: soCode,
-      quotationId: quotation.id,
-      customerId,
-      productId: quotation.productId,
-      productNote: quotation.productNote,
-      qty: quotation.qty,
-      totalAmount: quotation.totalAmount,
-      marginPercent: quotation.marginPercent,
-      requestedDeliveryDate: quotation.requestedDeliveryDate,
-      status: "MATERIAL_CHECK",
-    },
+  const woCode = await generateCode("workOrder");
+  const bom = parseBomFromSpec(quotation.materialSpec);
+
+  // SO + WO dibuat atomik; gagal salah satu = tidak ada yang tersimpan.
+  const salesOrder = await prisma.$transaction(async (tx) => {
+    const so = await tx.salesOrder.create({
+      data: {
+        code: soCode,
+        quotationId: quotation.id,
+        customerId,
+        productId: quotation.productId,
+        productNote: quotation.productNote,
+        qty: quotation.qty,
+        totalAmount: quotation.totalAmount,
+        marginPercent: quotation.marginPercent,
+        requestedDeliveryDate: quotation.requestedDeliveryDate,
+        status: "MATERIAL_CHECK",
+      },
+    });
+    await tx.workOrder.create({
+      data: {
+        code: woCode,
+        salesOrderId: so.id,
+        stage: "WAITING",
+        process: "PREPRESS",
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+    return so;
   });
 
-  const woCode = await generateCode("workOrder");
-  await prisma.workOrder.create({
-    data: {
-      code: woCode,
-      salesOrderId: salesOrder.id,
-      stage: "WAITING",
-      process: "PREPRESS",
-      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
+  if (bom.length > 0) {
+    await reserveBomForSalesOrder({ salesOrderId: salesOrder.id, lines: bom, userId: session.userId });
+  }
 
   await logAudit({
     userId: session.userId,

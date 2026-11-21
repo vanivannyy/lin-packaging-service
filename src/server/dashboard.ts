@@ -62,7 +62,7 @@ export async function getDashboardData() {
     }),
     prisma.invoice.aggregate({
       _sum: { totalAmount: true, paidAmount: true },
-      where: { isDeleted: false, status: "OVERDUE" },
+      where: { isDeleted: false, status: { not: "PAID" }, dueDate: { lt: now } },
     }),
     prisma.workOrder.count({ where: { isDeleted: false } }),
     prisma.workOrder.count({ where: { isDeleted: false, stage: { in: ["IN_PRODUCTION", "QC", "REWORK"] } } }),
@@ -85,7 +85,7 @@ export async function getDashboardData() {
     prisma.salesOrder.count({ where: { isDeleted: false, status: "DELIVERED", updatedAt: { gte: monthStart } } }),
     prisma.material.findMany({ where: { isDeleted: false } }),
     prisma.invoice.findMany({
-      where: { isDeleted: false, status: "OVERDUE" },
+      where: { isDeleted: false, status: { not: "PAID" }, dueDate: { lt: now } },
       include: { customer: true },
       orderBy: { dueDate: "asc" },
     }),

@@ -62,8 +62,9 @@ export async function autoCreatePurchaseRequestIfNeeded(materialId: string) {
   return pr;
 }
 
-// Safety-net: scan semua material aktif yang stoknya sudah di bawah minimum lalu buat PR
-// otomatis bila belum ada. Dipanggil ringan di halaman Purchase Request / Material & Stok.
+// Scan semua material aktif yang stoknya di bawah minimum lalu buat PR otomatis bila belum ada.
+// TIDAK dipanggil saat render halaman (GET tidak boleh menulis data). Pemicu: perubahan stok
+// (adjustMaterialStock, edit/buat material). Boleh dipakai dari job terjadwal bila nanti ada.
 export async function autoCreatePurchaseRequestsForAllLowStock() {
   const candidates = await prisma.material.findMany({
     where: { isDeleted: false, minStockQty: { gt: 0 } },
