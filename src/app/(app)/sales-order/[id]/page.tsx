@@ -7,7 +7,7 @@ import { formatDate, formatDateTime, formatNumber, formatPercent, formatRupiah }
 import { STOCK_MOVEMENT_SOURCE_LABEL, STOCK_MOVEMENT_TYPE_LABEL, stockMovementSourceLabel } from "@/lib/labels";
 import { requireModule } from "@/lib/require-session";
 import type { SalesOrderStatus } from "@prisma/client";
-import { updateSalesOrderStatusAction } from "../actions";
+import { addSalesOrderMaterialAction, removeSalesOrderMaterialAction, updateSalesOrderStatusAction } from "../actions";
 
 const NEXT_STATUS: Partial<Record<SalesOrderStatus, { to: SalesOrderStatus; label: string }>> = {
   MATERIAL_CHECK: { to: "PRODUCTION", label: "Mulai Produksi" },
@@ -49,6 +49,16 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
   const refCodes = [salesOrder.code, salesOrder.workOrder?.code, salesOrder.deliveryOrder?.code].filter(
     (code): code is string => Boolean(code),
   );
+
+  const [bomLines, allMaterials] = await Promise.all([
+    prisma.salesOrderMaterial.findMany({
+      where: { salesOrderId: salesOrder.id },
+      include: { material: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.material.findMany({ where: { isDeleted: false }, orderBy: { name: "asc" } }),
+  ]);
+  const canEditBom = salesOrder.status === "MATERIAL_CHECK";
 
   const [logs, stockLogs] = await Promise.all([
     prisma.auditTrail.findMany({
@@ -137,6 +147,80 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
               <InfoItem label="Status" value={<StatusBadge status={salesOrder.status} />} />
               <InfoItem label="Catatan Produk" value={salesOrder.productNote ?? "-"} />
             </div>
+          </Card>
+
+          <Card className="p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Kebutuhan Material (BOM) &amp; Reservasi
+            </p>
+            {bomLines.length === 0 ? (
+              <p className="text-sm text-gray-400">Belum ada kebutuhan material tercatat.</p>
+            ) : (
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>Material</Th>
+                    <Th>Qty</Th>
+                    <Th>Status</Th>
+                    <Th>Sumber</Th>
+                    <Th>{""}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {bomLines.map((line) => (
+                    <Tr key={line.id}>
+                      <Td className="font-medium text-gray-900">
+                        {line.material.name} <span className="text-gray-400">({line.material.sku})</span>
+                      </Td>
+                      <Td>
+                        {formatNumber(Number(line.qty))} {line.material.unit}
+                      </Td>
+                      <Td>
+                        {line.status === "RESERVED" ? "Direservasi" : line.status === "CONSUMED" ? "Terpakai" : "Dilepas"}
+                      </Td>
+                      <Td className="text-gray-500">{line.source}</Td>
+                      <Td>
+                        {canEditBom && line.status === "RESERVED" ? (
+                          <form action={removeSalesOrderMaterialAction}>
+                            <input type="hidden" name="lineId" value={line.id} />
+                            <button className="text-[11px] font-semibold text-red-500 hover:underline">Hapus</button>
+                          </form>
+                        ) : null}
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            )}
+            {canEditBom ? (
+              <form action={addSalesOrderMaterialAction} className="mt-3 flex flex-wrap items-center gap-2">
+                <input type="hidden" name="salesOrderId" value={salesOrder.id} />
+                <select
+                  name="materialId"
+                  required
+                  className="rounded-md border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500"
+                >
+                  <option value="">Pilih material</option>
+                  {allMaterials.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.sku}) — tersedia {formatNumber(Number(m.stockQty) - Number(m.reservedQty))} {m.unit}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="qty"
+                  type="number"
+                  min={0}
+                  step="any"
+                  required
+                  placeholder="Qty"
+                  className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500"
+                />
+                <button className="rounded-md border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-50">
+                  Tambah &amp; Reservasi
+                </button>
+              </form>
+            ) : null}
           </Card>
 
           <Card className="p-4">

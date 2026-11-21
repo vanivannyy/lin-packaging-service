@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
+import { formId } from "@/lib/form";
 
 const designSchema = z.object({
   name: z.string().min(2, "Nama design minimal 2 karakter"),
@@ -38,7 +39,7 @@ export async function createDesignMasterAction(formData: FormData) {
 
 export async function updateDesignMasterAction(formData: FormData) {
   const session = await requireModule("design-master");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const parsed = designSchema.parse({
     name: formData.get("name"),
     driveUrl: formData.get("driveUrl"),
@@ -63,7 +64,7 @@ export async function updateDesignMasterAction(formData: FormData) {
 
 export async function deleteDesignMasterAction(formData: FormData) {
   const session = await requireModule("design-master");
-  const id = formData.get("id") as string;
+  const id = formId(formData, "id");
   const design = await prisma.designMaster.update({ where: { id }, data: { isDeleted: true } });
 
   await logAudit({

@@ -88,7 +88,7 @@ function cardTone(wo: WorkOrderCardData): { border: string; bg: string; ring: st
   return { border: "border-gray-200", bg: "bg-white", ring: "ring-gray-200" };
 }
 
-export function ProduksiKanbanBoard({ workOrders }: { workOrders: WorkOrderCardData[] }) {
+export function ProduksiKanbanBoard({ workOrders, canQc }: { workOrders: WorkOrderCardData[]; canQc: boolean }) {
   const [items, setItems] = useState(workOrders);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<WorkOrderStage | null>(null);
@@ -272,6 +272,8 @@ export function ProduksiKanbanBoard({ workOrders }: { workOrders: WorkOrderCardD
                                 </button>
                               </form>
                             </>
+                          ) : !canQc ? (
+                            <span className="text-[11px] text-gray-400">Menunggu keputusan QC</span>
                           ) : (
                             <>
                               <form action={qcResultAction}>
@@ -329,7 +331,7 @@ export function ProduksiKanbanBoard({ workOrders }: { workOrders: WorkOrderCardD
         );
       })}
 
-      {selected ? <WorkOrderDetailModal workOrder={selected} onClose={() => setSelectedId(null)} /> : null}
+      {selected ? <WorkOrderDetailModal workOrder={selected} canQc={canQc} onClose={() => setSelectedId(null)} /> : null}
     </div>
   );
 }

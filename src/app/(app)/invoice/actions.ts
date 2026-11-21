@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
+import { recordInvoicePayment } from "@/lib/payment";
 
 const paymentSchema = z.object({
   invoiceId: z.string(),
@@ -23,24 +24,7 @@ export async function recordPaymentAction(formData: FormData) {
     reference: formData.get("reference") || undefined,
   });
 
-  const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id: parsed.invoiceId } });
-  const newPaidAmount = Number(invoice.paidAmount) + parsed.amount;
-  const newStatus = newPaidAmount >= Number(invoice.totalAmount) ? "PAID" : "PARTIAL";
-
-  await prisma.$transaction([
-    prisma.payment.create({
-      data: {
-        invoiceId: parsed.invoiceId,
-        amount: parsed.amount,
-        method: parsed.method,
-        reference: parsed.reference,
-      },
-    }),
-    prisma.invoice.update({
-      where: { id: parsed.invoiceId },
-      data: { paidAmount: newPaidAmount, status: newStatus },
-    }),
-  ]);
+  const { invoice, newPaidAmount, newStatus } = await recordInvoicePayment(parsed);
 
   await logAudit({
     userId: session.userId,
@@ -62,6 +46,36 @@ export async function recordPaymentAction(formData: FormData) {
       newStatus === "PAID"
         ? `${session.name} menandai ${invoice.code} lunas.`
         : `${session.name} mencatat pembayaran ${invoice.code}. Status sekarang ${newStatus}.`,
+  });
+  revalidatePath("/invoice");
+}
+
+const dueDateSchema = z.object({
+  invoiceId: z.string().min(1),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal jatuh tempo tidak valid"),
+});
+
+// Jatuh tempo default mengikuti CustomerTerm, tetapi boleh disesuaikan (tercatat di audit old/new).
+export async function updateInvoiceDueDateAction(formData: FormData) {
+  const session = await requireModule("invoice");
+  const parsed = dueDateSchema.parse({
+    invoiceId: formData.get("invoiceId"),
+    dueDate: formData.get("dueDate"),
+  });
+
+  const invoice = await prisma.invoice.findUniqueOrThrow({ where: { id: parsed.invoiceId } });
+  if (invoice.isDeleted || invoice.status === "PAID") return;
+
+  const dueDate = new Date(`${parsed.dueDate}T00:00:00`);
+  await prisma.invoice.update({ where: { id: invoice.id }, data: { dueDate } });
+
+  await logAudit({
+    userId: session.userId,
+    module: "finance",
+    action: "UPDATE",
+    referenceCode: invoice.code,
+    oldValue: { dueDate: invoice.dueDate?.toISOString() ?? null },
+    newValue: { dueDate: dueDate.toISOString() },
   });
   revalidatePath("/invoice");
 }

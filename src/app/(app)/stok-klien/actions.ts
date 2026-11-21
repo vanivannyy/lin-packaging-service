@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
 import { adminAdjustLinStock, adminAdjustClientStock } from "@/lib/client-stock";
 import { notifyClientAccounts } from "@/lib/client-notify";
+import { formId } from "@/lib/form";
 
 const accountSchema = z.object({
   customerId: z.string().min(1, "Customer wajib dipilih"),
@@ -66,7 +67,7 @@ export async function resetClientAccountPasswordAction(formData: FormData) {
   const passwordHash = await bcrypt.hash(parsed.password, 10);
   const account = await prisma.clientAccount.update({
     where: { id: parsed.clientAccountId },
-    data: { passwordHash },
+    data: { passwordHash, tokenVersion: { increment: 1 } },
   });
 
   await logAudit({
@@ -82,11 +83,11 @@ export async function resetClientAccountPasswordAction(formData: FormData) {
 
 export async function toggleClientAccountActiveAction(formData: FormData) {
   const session = await requireModule("client-stock");
-  const clientAccountId = formData.get("clientAccountId") as string;
+  const clientAccountId = formId(formData, "clientAccountId");
   const account = await prisma.clientAccount.findUniqueOrThrow({ where: { id: clientAccountId } });
   const updated = await prisma.clientAccount.update({
     where: { id: clientAccountId },
-    data: { isActive: !account.isActive },
+    data: { isActive: !account.isActive, tokenVersion: { increment: 1 } },
   });
 
   await logAudit({
@@ -192,7 +193,7 @@ export async function updateClientItemAction(formData: FormData) {
 
 export async function toggleClientItemActiveAction(formData: FormData) {
   const session = await requireModule("client-stock");
-  const itemId = formData.get("itemId") as string;
+  const itemId = formId(formData, "itemId");
   const item = await prisma.clientFinishedGoodsItem.findUniqueOrThrow({ where: { id: itemId } });
   const updated = await prisma.clientFinishedGoodsItem.update({
     where: { id: itemId },

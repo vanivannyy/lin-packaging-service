@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCode } from "@/lib/codegen";
 import { logAudit } from "@/lib/audit";
 import { requireModule } from "@/lib/require-session";
+import { formId } from "@/lib/form";
 
 const productSchema = z.object({
   name: z.string().min(2),
@@ -61,7 +62,7 @@ export async function updateProductAction(formData: FormData) {
     redirect("/produk?error=" + encodeURIComponent("Hanya Owner yang bisa mengubah produk"));
   }
 
-  const id = String(formData.get("productId") ?? "");
+  const id = formId(formData, "productId");
   const parsed = parseProductForm(formData);
   const code = z.string().trim().min(1, "Kode produk wajib diisi").parse(formData.get("code"));
   const isActive = formData.get("isActive") === "true";
@@ -110,7 +111,7 @@ export async function updateProductAction(formData: FormData) {
 
 export async function deleteProductAction(formData: FormData) {
   const session = await requireModule("produk");
-  const id = formData.get("productId") as string;
+  const id = formId(formData, "productId");
   const product = await prisma.product.findUniqueOrThrow({ where: { id } });
   await prisma.product.update({ where: { id }, data: { isDeleted: true, isActive: false } });
 
@@ -127,7 +128,7 @@ export async function deleteProductAction(formData: FormData) {
 
 export async function toggleProductActiveAction(formData: FormData) {
   const session = await requireModule("produk");
-  const id = formData.get("productId") as string;
+  const id = formId(formData, "productId");
   const product = await prisma.product.findUniqueOrThrow({ where: { id } });
   await prisma.product.update({ where: { id }, data: { isActive: !product.isActive } });
 

@@ -5,10 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { notifyStatusChange } from "@/lib/notify";
 import { requireModule } from "@/lib/require-session";
-import { saveUploadedFile } from "@/lib/upload";
+import { normalizeDesignLink } from "@/lib/design-link";
 import { ensureDeliveryOrderForSalesOrder } from "@/lib/delivery";
+import { consumeBomForSalesOrder } from "@/lib/material-reservation";
+import { canPerformQc } from "@/lib/roles";
 import { z } from "zod";
 import type { WorkOrderProcess, WorkOrderStage } from "@prisma/client";
+import { formId } from "@/lib/form";
 
 // Urutan langkah produksi papan kanban: setiap klik "Proses" memajukan satu langkah.
 const STEPS: { stage: WorkOrderStage; process: WorkOrderProcess; progress: number }[] = [
@@ -81,6 +84,10 @@ export async function advanceWorkOrderAction(formData: FormData) {
     },
   });
 
+  if (next.stage === "IN_PRODUCTION") {
+    await consumeBomForSalesOrder(wo.salesOrderId, session.userId);
+  }
+
   await logAudit({
     userId: session.userId,
     module: "production",
@@ -128,6 +135,11 @@ export async function moveWorkOrderStageAction(workOrderId: string, toStage: Wor
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });
   if (wo.isDeleted || wo.stage === toStage) return;
 
+  // DONE hanya boleh lewat alur QC -> Packing -> completePackingAction.
+  if (toStage === "DONE") {
+    throw new Error("Work Order hanya bisa Completed lewat QC lalu Packing.");
+  }
+
   if (toStage === "IN_PRODUCTION") {
     await assertPrepressReady(workOrderId);
   }
@@ -141,19 +153,19 @@ export async function moveWorkOrderStageAction(workOrderId: string, toStage: Wor
       process: defaults.process,
       progressPercent: defaults.progress,
       startedAt: wo.startedAt ?? (toStage === "IN_PRODUCTION" || toStage === "REWORK" ? new Date() : wo.startedAt),
-      qcPassed: toStage === "QC" ? null : toStage === "DONE" ? true : toStage === "REWORK" ? false : wo.qcPassed,
-      completedAt: toStage === "DONE" ? new Date() : null,
+      qcPassed: toStage === "QC" ? null : toStage === "REWORK" ? false : wo.qcPassed,
+      completedAt: null,
     },
   });
 
-  if (toStage === "DONE") {
-    await ensureDeliveryOrderForSalesOrder(wo.salesOrderId);
+  if (toStage === "IN_PRODUCTION") {
+    await consumeBomForSalesOrder(wo.salesOrderId, session.userId);
   }
 
   await logAudit({
     userId: session.userId,
     module: "production",
-    action: toStage === "DONE" ? "COMPLETE" : "STATUS_CHANGE",
+    action: "STATUS_CHANGE",
     referenceCode: wo.code,
     oldValue: { stage: wo.stage, process: wo.process },
     newValue: { stage: toStage, process: defaults.process },
@@ -180,17 +192,6 @@ export async function moveWorkOrderStageAction(workOrderId: string, toStage: Wor
       title: "Work Order masuk Rework",
       message: `${session.name} memindahkan ${wo.code} ke Rework.`,
     });
-  } else if (toStage === "DONE") {
-    await notifyStatusChange({
-      excludeUserId: session.userId,
-      moduleKeys: ["sales-order", "delivery"],
-      module: "produksi",
-      type: "STATUS",
-      href: "/delivery",
-      referenceCode: wo.code,
-      title: "Work Order completed",
-      message: `${session.name} menandai ${wo.code} sebagai Completed. Siap diproses di papan Delivery.`,
-    });
   }
   revalidatePath("/produksi");
   revalidatePath("/dashboard");
@@ -199,19 +200,17 @@ export async function moveWorkOrderStageAction(workOrderId: string, toStage: Wor
 }
 
 // ============================================================
-// PREPRESS - upload screenshot design & revisi
+// PREPRESS - link design (OneDrive) & revisi
 // ============================================================
 
 export async function uploadPrepressDesignAction(formData: FormData) {
   const session = await requireModule("produksi");
-  const workOrderId = formData.get("workOrderId") as string;
-  const file = formData.get("file");
-  if (!workOrderId || !(file instanceof File) || file.size === 0) return;
+  const workOrderId = formId(formData, "workOrderId");
+  if (!workOrderId) return;
+  const url = normalizeDesignLink(String(formData.get("designUrl") ?? ""));
 
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });
   if (wo.isDeleted) return;
-
-  const url = await saveUploadedFile(file, "prepress");
 
   await prisma.workOrder.update({
     where: { id: workOrderId },
@@ -232,8 +231,8 @@ export async function uploadPrepressDesignAction(formData: FormData) {
 // tahap tsb (kartu berubah kuning) sampai desain baru diupload & ditandai Done lagi.
 export async function requestPrepressRevisionAction(formData: FormData) {
   const session = await requireModule("produksi");
-  const workOrderId = formData.get("workOrderId") as string;
-  const note = (formData.get("note") as string | null)?.trim() || null;
+  const workOrderId = formId(formData, "workOrderId");
+  const note = z.string().trim().max(500).nullish().parse(formData.get("note")) || null;
   if (!workOrderId) return;
 
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });
@@ -399,6 +398,9 @@ export async function submitProductionLogAction(formData: FormData) {
 // Checklist QC (mis. "QC Printing" / "QC Finishing") - dicatat sebagai riwayat inspeksi, tidak menimpa data lama.
 export async function submitQcCheckAction(formData: FormData) {
   const session = await requireModule("produksi");
+  if (!canPerformQc(session.role)) {
+    throw new Error("Hanya role QC atau Owner yang bisa mengisi checklist QC.");
+  }
   const parsed = z
     .object({
       workOrderId: z.string().min(1),
@@ -437,6 +439,9 @@ export async function submitQcCheckAction(formData: FormData) {
 // Reject -> langsung pindah ke Rework (kartu merah).
 export async function qcResultAction(formData: FormData) {
   const session = await requireModule("produksi");
+  if (!canPerformQc(session.role)) {
+    throw new Error("Hanya role QC atau Owner yang bisa memutuskan hasil QC.");
+  }
   const parsed = z
     .object({
       workOrderId: z.string().min(1),
@@ -453,6 +458,7 @@ export async function qcResultAction(formData: FormData) {
   const { workOrderId, passed, rejectRatePercent } = parsed.data;
 
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });
+  if (wo.isDeleted || wo.stage !== "QC") return;
 
   await prisma.workOrder.update({
     where: { id: workOrderId },
@@ -505,7 +511,7 @@ export async function qcResultAction(formData: FormData) {
 // Diklik manual setelah QC Lolos - baru WO masuk tab Packing.
 export async function moveToPackingAction(formData: FormData) {
   const session = await requireModule("produksi");
-  const workOrderId = formData.get("workOrderId") as string;
+  const workOrderId = formId(formData, "workOrderId");
   if (!workOrderId) return;
 
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });
@@ -530,7 +536,7 @@ export async function moveToPackingAction(formData: FormData) {
 // Packing selesai -> WO Completed (hijau) + Sales Order siap kirim + kartu baru di papan Delivery.
 export async function completePackingAction(formData: FormData) {
   const session = await requireModule("produksi");
-  const workOrderId = formData.get("workOrderId") as string;
+  const workOrderId = formId(formData, "workOrderId");
   if (!workOrderId) return;
 
   const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId } });

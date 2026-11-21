@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { rolesForModule } from "@/lib/roles";
+import { logger } from "@/lib/logger";
 
 type NotifyParams = {
   title: string;
@@ -50,6 +51,6 @@ export async function notifyStatusChange(params: NotifyParams) {
       })),
     });
   } catch (error) {
-    console.error("Gagal mengirim notifikasi:", error);
+    logger.error("Gagal mengirim notifikasi", error);
   }
 }

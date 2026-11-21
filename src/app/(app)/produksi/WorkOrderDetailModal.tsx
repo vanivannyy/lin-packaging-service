@@ -172,40 +172,36 @@ function PrepressUploadBox({ workOrder, isDone }: { workOrder: WorkOrderCardData
   return (
     <div className="mt-2 space-y-2 rounded-md border border-dashed border-gray-300 bg-gray-50 p-2.5">
       {workOrder.prepressDesignUrl ? (
-        <div className="flex items-center gap-2">
+        <div className="min-w-0 text-[11px] text-gray-500">
           <a
             href={workOrder.prepressDesignUrl}
             target="_blank"
             rel="noreferrer"
-            className="overflow-hidden rounded-md border border-gray-200 bg-white"
+            className="block truncate font-medium text-emerald-700 underline"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={workOrder.prepressDesignUrl} alt="Screenshot design" className="h-14 w-14 object-cover" />
+            Link design tersimpan (buka di OneDrive)
           </a>
-          <div className="min-w-0 flex-1 text-[11px] text-gray-500">
-            <p className="truncate font-medium text-emerald-700">Screenshot design tersimpan</p>
-            {workOrder.prepressDesignUploadedAt ? <p>{formatDateTime(workOrder.prepressDesignUploadedAt)}</p> : null}
-          </div>
+          {workOrder.prepressDesignUploadedAt ? <p>{formatDateTime(workOrder.prepressDesignUploadedAt)}</p> : null}
         </div>
       ) : (
-        <p className="text-[11px] font-medium text-red-500">Wajib upload screenshot design sebelum menandai selesai.</p>
+        <p className="text-[11px] font-medium text-red-500">Wajib isi link design OneDrive sebelum menandai selesai.</p>
       )}
 
       <form ref={formRef} action={handleUpload} className="flex items-center gap-2">
         <input type="hidden" name="workOrderId" value={workOrder.id} />
         <input
-          type="file"
-          name="file"
-          accept="image/*"
+          type="url"
+          name="designUrl"
           required
-          className="block w-full text-[11px] text-gray-500 file:mr-2 file:rounded-md file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+          placeholder="https://1drv.ms/... atau link OneDrive/SharePoint"
+          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500"
         />
         <button
           type="submit"
           disabled={pending}
           className="flex shrink-0 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
         >
-          <Upload size={12} /> {pending ? "..." : "Upload"}
+          <Upload size={12} /> {pending ? "..." : "Simpan Link"}
         </button>
       </form>
 
@@ -240,7 +236,7 @@ function PrepressUploadBox({ workOrder, isDone }: { workOrder: WorkOrderCardData
   );
 }
 
-export function WorkOrderDetailModal({ workOrder, onClose }: { workOrder: WorkOrderCardData; onClose: () => void }) {
+export function WorkOrderDetailModal({ workOrder, canQc, onClose }: { workOrder: WorkOrderCardData; canQc: boolean; onClose: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -392,9 +388,13 @@ export function WorkOrderDetailModal({ workOrder, onClose }: { workOrder: WorkOr
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Checklist QC</p>
                 <div className="flex flex-wrap gap-2">
-                  {(["PRINTING", "FINISHING"] as const).map((checkType) => (
-                    <QcCheckButton key={checkType} workOrderId={workOrder.id} checkType={checkType} />
-                  ))}
+                  {canQc ? (
+                    (["PRINTING", "FINISHING"] as const).map((checkType) => (
+                      <QcCheckButton key={checkType} workOrderId={workOrder.id} checkType={checkType} />
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-gray-400">Checklist QC hanya untuk Owner, General Manager, dan QC.</p>
+                  )}
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {workOrder.qcChecks.length === 0 ? (

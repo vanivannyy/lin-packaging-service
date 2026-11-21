@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     customerName: account.customer.name,
     name: account.name,
     email: account.email,
+    tv: account.tokenVersion,
   });
 
   await prisma.clientAccount.update({ where: { id: account.id }, data: { lastLoginAt: new Date() } });

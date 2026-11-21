@@ -5,7 +5,7 @@ import { requireModule } from "@/lib/require-session";
 
 export default async function KalkulatorHppPage() {
   await requireModule("kalkulator-hpp");
-  const [customers, priceMasterItems] = await Promise.all([
+  const [customers, priceMasterItems, materials] = await Promise.all([
     prisma.customer.findMany({
       where: { isDeleted: false, isActive: true },
       orderBy: { name: "asc" },
@@ -20,6 +20,10 @@ export default async function KalkulatorHppPage() {
     prisma.priceMasterItem.findMany({
       where: { isDeleted: false, isActive: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+    prisma.material.findMany({
+      where: { isDeleted: false },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -43,6 +47,14 @@ export default async function KalkulatorHppPage() {
             createdAt: q.createdAt.toISOString(),
             materialSpec: (q.materialSpec as Record<string, unknown> | null) ?? null,
           })),
+        }))}
+        materials={materials.map((m) => ({
+          id: m.id,
+          name: m.name,
+          sku: m.sku,
+          category: m.category,
+          unit: m.unit,
+          available: Number(m.stockQty) - Number(m.reservedQty),
         }))}
         priceMasterItems={priceMasterItems.map((p) => ({
           id: p.id,

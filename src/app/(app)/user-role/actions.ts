@@ -11,6 +11,7 @@ import { requireModule } from "@/lib/require-session";
 import { createSession } from "@/lib/session";
 import { USER_ROLES } from "@/lib/roles";
 import type { UserRole } from "@prisma/client";
+import { formId } from "@/lib/form";
 
 const userSchema = z.object({
   name: z.string().min(2),
@@ -124,6 +125,8 @@ export async function updateUserAction(formData: FormData) {
       position: parsed.data.position ?? null,
       role: parsed.data.role,
       ...(parsed.data.password ? { passwordHash: await bcrypt.hash(parsed.data.password, 10) } : {}),
+      // Ganti password atau role = cabut semua sesi/token lama.
+      ...(parsed.data.password || parsed.data.role !== current.role ? { tokenVersion: { increment: 1 } } : {}),
     },
   });
 
@@ -134,6 +137,7 @@ export async function updateUserAction(formData: FormData) {
       name: user.name,
       email: user.email,
       role: user.role,
+      tv: user.tokenVersion,
     });
   }
 
@@ -165,9 +169,9 @@ export async function updateUserAction(formData: FormData) {
 
 export async function toggleUserActiveAction(formData: FormData) {
   const session = await requireModule("user-role");
-  const userId = formData.get("userId") as string;
+  const userId = formId(formData, "userId");
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  await prisma.user.update({ where: { id: userId }, data: { isActive: !user.isActive } });
+  await prisma.user.update({ where: { id: userId }, data: { isActive: !user.isActive, tokenVersion: { increment: 1 } } });
 
   await logAudit({
     userId: session.userId,
@@ -176,6 +180,22 @@ export async function toggleUserActiveAction(formData: FormData) {
     referenceCode: user.code,
     oldValue: { isActive: user.isActive },
     newValue: { isActive: !user.isActive },
+  });
+  revalidatePath("/user-role");
+}
+
+// "Logout semua perangkat": mencabut seluruh token web & mobile milik user.
+export async function revokeUserSessionsAction(formData: FormData) {
+  const session = await requireModule("user-role");
+  const userId = formId(formData, "userId");
+  const user = await prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+
+  await logAudit({
+    userId: session.userId,
+    module: "user-role",
+    action: "STATUS_CHANGE",
+    referenceCode: user.code,
+    newValue: { event: "REVOKE_SESSIONS" },
   });
   revalidatePath("/user-role");
 }

@@ -6,6 +6,8 @@ import { notifyStatusChange } from "@/lib/notify";
 import { findDeliveryByCode } from "@/lib/mobile-delivery";
 import { recordDeliveryOut } from "@/lib/client-stock";
 import type { DeliveryStage } from "@prisma/client";
+import { ensureInvoiceForSalesOrder } from "@/lib/invoice";
+import { logger } from "@/lib/logger";
 
 const NEXT_STAGE: Record<DeliveryStage, DeliveryStage | null> = {
   READY: "IN_DELIVERY",
@@ -36,20 +38,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     return Response.json({ error: "Pengiriman ini sudah sampai tujuan (Delivered)" }, { status: 400 });
   }
 
-  await prisma.deliveryOrder.update({
-    where: { id: delivery.id },
-    data: {
-      stage: toStage,
-      deliveredAt: toStage === "DELIVERED" ? new Date() : null,
-    },
+  // DO + SO + Invoice (saat DELIVERED) atomik, konsisten dengan jalur web.
+  await prisma.$transaction(async (tx) => {
+    await tx.deliveryOrder.update({
+      where: { id: delivery.id },
+      data: {
+        stage: toStage,
+        deliveredAt: toStage === "DELIVERED" ? new Date() : null,
+      },
+    });
+    if (toStage === "DELIVERED") {
+      await tx.salesOrder.update({
+        where: { id: delivery.salesOrderId },
+        data: { status: "DELIVERED", deliveredAt: new Date() },
+      });
+      await ensureInvoiceForSalesOrder(delivery.salesOrderId, tx);
+    }
   });
 
   if (toStage === "DELIVERED") {
-    await prisma.salesOrder.update({ where: { id: delivery.salesOrderId }, data: { status: "DELIVERED" } });
     try {
       await recordDeliveryOut(delivery.salesOrderId, delivery.code);
     } catch (error) {
-      console.error("Gagal sinkron stok klien (delivery out):", error);
+      logger.error("Gagal sinkron stok klien (delivery out)", error, { deliveryId: delivery.id });
     }
   }
 
