@@ -12,18 +12,16 @@ const DISABLED_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LIN Packaging — Layanan dinonaktifkan</title>
+  <title>this site can't be reached</title>
   <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
-    main { max-width: 28rem; padding: 2rem; text-align: center; }
-    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
-    p { margin: 0; line-height: 1.5; color: #3f3f46; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #fff; color: #202124; }
+    main { max-width: 28rem; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 500; margin: 0; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Layanan sedang dinonaktifkan</h1>
-    <p>LIN Packaging Service tidak dapat diakses untuk sementara.</p>
+    <h1>this site can't be reached</h1>
   </main>
 </body>
 </html>`;
@@ -34,7 +32,7 @@ export async function middleware(request: NextRequest) {
   if (SITE_DISABLED) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json(
-        { error: "Layanan sedang dinonaktifkan." },
+        { error: "this site can't be reached" },
         { status: 503, headers: { "Retry-After": "86400" } },
       );
     }
